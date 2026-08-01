@@ -1,0 +1,25 @@
+{
+  "name": "Trading Analyst V8 Pro",
+  "short_name": "TA V8 Pro",
+  "description": "Herramienta educativa para análisis técnico de índices sintéticos en tiempo real.",
+  "lang": "es-SV",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020711",
+  "theme_color": "#06131f",
+  "categories": [
+    "finance",
+    "education",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
