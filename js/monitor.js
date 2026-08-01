@@ -3,18 +3,22 @@
 TRADING ANALYST V8 PRO
 Archivo: js/monitor.js
 
+VERSIÓN ESTABLE DE PREALERTA
+
 Responsabilidad:
-- Controlar el monitoreo continuo.
-- Administrar los estados:
+- Buscar oportunidades continuamente.
+- Mantener una candidatura interna antes de mostrar PREPARE.
+- Evitar cancelaciones por un solo tick contrario.
+- Dar tiempo suficiente para preparar el bot manual.
+- Administrar:
+  INACTIVE
   MONITORING
+  CANDIDATE
   PREPARE
   CONFIRMED
   EXECUTING
   RESULT
   CANCELLED
-- Evitar señales repetidas.
-- Controlar tiempos de preparación y vigencia.
-- Avisar a app.js cuando cambia el estado.
 =========================================================
 */
 
@@ -26,6 +30,7 @@ Responsabilidad:
 export const ESTADOS_MONITOR = Object.freeze({
   INACTIVE: "INACTIVE",
   MONITORING: "MONITORING",
+  CANDIDATE: "CANDIDATE",
   PREPARE: "PREPARE",
   CONFIRMED: "CONFIRMED",
   EXECUTING: "EXECUTING",
@@ -35,23 +40,54 @@ export const ESTADOS_MONITOR = Object.freeze({
 
 
 /* =====================================================
-2. CONFIGURACIÓN
+2. CONFIGURACIÓN PRINCIPAL
 ===================================================== */
 
 export const CONFIGURACION_MONITOR = Object.freeze({
-  ciclosMinimosPrepare: 2,
-  ciclosMinimosConfirmacion: 3,
+  /*
+  La señal debe repetirse internamente antes de mostrar PREPARE.
+  */
+  ciclosParaCandidata: 2,
+  ciclosParaPrepare: 4,
+  ciclosParaConfirmar: 7,
 
-  tiempoMaximoPrepare: 12000,
-  tiempoVisibleConfirmacion: 3500,
-  tiempoVisibleResultado: 5000,
+  /*
+  Tolerancia frente a pequeñas caídas de puntaje o ticks contrarios.
+  */
+  ciclosDebilesPermitidos: 2,
+  ciclosContrariosParaCancelar: 3,
 
-  intervaloMinimoEntreSenales: 5000,
+  /*
+  Umbrales de calidad.
+  */
+  puntajeCandidata: 58,
+  puntajePrepare: 68,
+  puntajeConfirmado: 80,
 
-  puntajeMinimoPrepare: 68,
-  puntajeMinimoConfirmado: 80,
+  /*
+  Histeresis:
+  PREPARE no se cancela hasta caer claramente por debajo.
+  */
+  puntajeCancelacionPrepare: 57,
 
-  maximoHistorialEstados: 30
+  /*
+  PREPARE permanecerá visible como mínimo cuatro segundos.
+  */
+  tiempoMinimoPrepare: 4000,
+  tiempoMaximoPrepare: 16000,
+
+  /*
+  Evita señales consecutivas demasiado cercanas.
+  */
+  intervaloEntreSenales: 6000,
+
+  /*
+  Tiempo de visualización.
+  */
+  tiempoMostrarCancelacion: 1800,
+  tiempoMostrarResultado: 5000,
+
+  maximoHistorialEstados: 40
 });
 
 
@@ -64,9 +100,7 @@ function ahora() {
 }
 
 
-function copiarResultado(
-  resultado
-) {
+function copiarResultado(resultado) {
   if (
     !resultado ||
     typeof resultado !== "object"
@@ -77,39 +111,38 @@ function copiarResultado(
   return {
     ...resultado,
 
-    razones: Array.isArray(
-      resultado.razones
-    )
+    razones: Array.isArray(resultado.razones)
       ? [...resultado.razones]
       : [],
 
-    advertencias: Array.isArray(
-      resultado.advertencias
-    )
+    advertencias: Array.isArray(resultado.advertencias)
       ? [...resultado.advertencias]
       : [],
 
     metadata:
       resultado.metadata &&
-      typeof resultado.metadata ===
-        "object"
-        ? {
-            ...resultado.metadata
-          }
+      typeof resultado.metadata === "object"
+        ? { ...resultado.metadata }
         : {}
   };
 }
 
 
-function crearRegistroEstado(
-  estado,
-  datos = {}
-) {
-  return {
-    estado,
-    datos,
-    fecha: ahora()
-  };
+function direccionValida(resultado) {
+  return Boolean(
+    resultado &&
+    typeof resultado.direccion === "string" &&
+    resultado.direccion !== "WAIT"
+  );
+}
+
+
+function obtenerPuntaje(resultado) {
+  const puntaje = Number(resultado?.puntaje);
+
+  return Number.isFinite(puntaje)
+    ? puntaje
+    : 0;
 }
 
 
@@ -126,9 +159,7 @@ export function crearMonitorOportunidades(
   };
 
   let activo = false;
-
-  let estadoActual =
-    ESTADOS_MONITOR.INACTIVE;
+  let estadoActual = ESTADOS_MONITOR.INACTIVE;
 
   let resultadoActual = null;
   let resultadoAnterior = null;
@@ -136,13 +167,15 @@ export function crearMonitorOportunidades(
   let direccionCandidata = null;
   let estrategiaCandidata = null;
 
-  let repeticiones = 0;
+  let ciclosMismaDireccion = 0;
+  let ciclosDebiles = 0;
+  let ciclosContrarios = 0;
 
   let inicioPrepare = 0;
-  let ultimaSenalConfirmada = 0;
+  let ultimaConfirmacion = 0;
 
   let temporizadorPrepare = null;
-  let temporizadorConfirmacion = null;
+  let temporizadorTransicion = null;
   let temporizadorResultado = null;
 
   let contexto = {
@@ -157,6 +190,7 @@ export function crearMonitorOportunidades(
 
   const escuchas = {
     estado: [],
+    candidata: [],
     prepare: [],
     confirmado: [],
     cancelado: [],
@@ -169,35 +203,25 @@ export function crearMonitorOportunidades(
   5. EVENTOS
   =================================================== */
 
-  function al(
-    evento,
-    funcion
-  ) {
+  function al(evento, funcion) {
     if (
       !escuchas[evento] ||
       typeof funcion !== "function"
     ) {
-      return;
+      return false;
     }
 
-    if (
-      !escuchas[evento].includes(
-        funcion
-      )
-    ) {
-      escuchas[evento].push(
-        funcion
-      );
+    if (!escuchas[evento].includes(funcion)) {
+      escuchas[evento].push(funcion);
     }
+
+    return true;
   }
 
 
-  function quitar(
-    evento,
-    funcion
-  ) {
+  function quitar(evento, funcion) {
     if (!escuchas[evento]) {
-      return;
+      return false;
     }
 
     escuchas[evento] =
@@ -205,28 +229,25 @@ export function crearMonitorOportunidades(
         (registrada) =>
           registrada !== funcion
       );
+
+    return true;
   }
 
 
-  function emitir(
-    evento,
-    datos = {}
-  ) {
+  function emitir(evento, datos = {}) {
     const funciones =
       escuchas[evento] || [];
 
-    funciones.forEach(
-      (funcion) => {
-        try {
-          funcion(datos);
-        } catch (error) {
-          console.error(
-            `Error en evento ${evento}:`,
-            error
-          );
-        }
+    funciones.forEach((funcion) => {
+      try {
+        funcion(datos);
+      } catch (error) {
+        console.error(
+          `Error en evento ${evento}:`,
+          error
+        );
       }
-    );
+    });
   }
 
 
@@ -234,40 +255,34 @@ export function crearMonitorOportunidades(
     mensaje,
     tipo = "normal"
   ) {
-    emitir(
-      "diagnostico",
-      {
-        mensaje,
-        tipo,
-        fecha: ahora()
-      }
-    );
+    emitir("diagnostico", {
+      mensaje,
+      tipo,
+      fecha: ahora()
+    });
   }
 
 
   /* ===================================================
-  6. HISTORIAL DE ESTADOS
+  6. HISTORIAL Y ESTADOS
   =================================================== */
 
   function guardarEstado(
     estado,
     datos = {}
   ) {
-    historialEstados.unshift(
-      crearRegistroEstado(
-        estado,
-        datos
-      )
-    );
+    historialEstados.unshift({
+      estado,
+      datos,
+      fecha: ahora()
+    });
 
     if (
       historialEstados.length >
-      configuracion
-        .maximoHistorialEstados
+      configuracion.maximoHistorialEstados
     ) {
       historialEstados.length =
-        configuracion
-          .maximoHistorialEstados;
+        configuracion.maximoHistorialEstados;
     }
   }
 
@@ -283,20 +298,24 @@ export function crearMonitorOportunidades(
       datos
     );
 
-    emitir(
-      "estado",
-      {
-        estado: nuevoEstado,
-        resultado:
-          copiarResultado(
-            resultadoActual
-          ),
-        contexto: {
-          ...contexto
-        },
-        ...datos
-      }
-    );
+    emitir("estado", {
+      estado: nuevoEstado,
+
+      resultado:
+        copiarResultado(
+          resultadoActual
+        ),
+
+      contexto: {
+        ...contexto
+      },
+
+      ciclosMismaDireccion,
+      ciclosDebiles,
+      ciclosContrarios,
+
+      ...datos
+    });
   }
 
 
@@ -315,16 +334,13 @@ export function crearMonitorOportunidades(
   }
 
 
-  function limpiarTemporizadorConfirmacion() {
-    if (
-      temporizadorConfirmacion
-    ) {
+  function limpiarTemporizadorTransicion() {
+    if (temporizadorTransicion) {
       clearTimeout(
-        temporizadorConfirmacion
+        temporizadorTransicion
       );
 
-      temporizadorConfirmacion =
-        null;
+      temporizadorTransicion = null;
     }
   }
 
@@ -335,27 +351,53 @@ export function crearMonitorOportunidades(
         temporizadorResultado
       );
 
-      temporizadorResultado =
-        null;
+      temporizadorResultado = null;
     }
   }
 
 
   function limpiarTemporizadores() {
     limpiarTemporizadorPrepare();
-    limpiarTemporizadorConfirmacion();
+    limpiarTemporizadorTransicion();
     limpiarTemporizadorResultado();
   }
 
 
   /* ===================================================
-  8. CONTEXTO
+  8. REINICIAR CANDIDATURA
+  =================================================== */
+
+  function reiniciarCandidatura({
+    conservarResultadoAnterior = true
+  } = {}) {
+    direccionCandidata = null;
+    estrategiaCandidata = null;
+
+    ciclosMismaDireccion = 0;
+    ciclosDebiles = 0;
+    ciclosContrarios = 0;
+
+    inicioPrepare = 0;
+
+    if (conservarResultadoAnterior) {
+      resultadoAnterior =
+        resultadoActual;
+    }
+
+    resultadoActual = null;
+
+    limpiarTemporizadorPrepare();
+  }
+
+
+  /* ===================================================
+  9. CONTEXTO
   =================================================== */
 
   function establecerContexto(
     nuevoContexto = {}
   ) {
-    const contextoAnterior = {
+    const anterior = {
       ...contexto
     };
 
@@ -365,71 +407,58 @@ export function crearMonitorOportunidades(
     };
 
     const cambioImportante =
-      contextoAnterior.simbolo !==
-        contexto.simbolo ||
-      contextoAnterior.estrategia !==
-        contexto.estrategia ||
-      contextoAnterior.modo !==
-        contexto.modo ||
-      contextoAnterior.horizonte !==
-        contexto.horizonte;
+      anterior.simbolo !== contexto.simbolo ||
+      anterior.estrategia !== contexto.estrategia ||
+      anterior.modo !== contexto.modo ||
+      anterior.horizonte !== contexto.horizonte;
 
     if (
       cambioImportante &&
       activo
     ) {
-      cancelarOportunidad(
-        "La configuración cambió. Se reinició el monitoreo.",
-        false
+      /*
+      No se muestra CANCELLED porque el usuario solo cambió
+      la configuración. Se reinicia silenciosamente.
+      */
+      reiniciarCandidatura();
+
+      cambiarEstado(
+        ESTADOS_MONITOR.MONITORING,
+        {
+          mensaje:
+            "Configuración actualizada. Buscando una nueva entrada."
+        }
       );
 
-      iniciar();
+      diagnostico(
+        "La configuración cambió y el análisis fue reiniciado."
+      );
     }
 
     diagnostico(
-      `Contexto actualizado: ${contexto.mercado || contexto.simbolo} · ${contexto.estrategia}.`
+      `Contexto: ${contexto.mercado || contexto.simbolo} · ${contexto.estrategia}.`
     );
   }
 
 
   /* ===================================================
-  9. REINICIAR CANDIDATO
-  =================================================== */
-
-  function reiniciarCandidato() {
-    direccionCandidata = null;
-    estrategiaCandidata = null;
-    repeticiones = 0;
-    inicioPrepare = 0;
-
-    resultadoAnterior =
-      resultadoActual;
-
-    resultadoActual = null;
-
-    limpiarTemporizadorPrepare();
-  }
-
-
-  /* ===================================================
-  10. INICIAR MONITOREO
+  10. INICIAR
   =================================================== */
 
   function iniciar() {
-    if (activo) {
-      return;
-    }
-
+    /*
+    Permite reiniciar correctamente incluso si ya estaba activo.
+    */
     activo = true;
 
-    reiniciarCandidato();
     limpiarTemporizadores();
+    reiniciarCandidatura();
 
     cambiarEstado(
       ESTADOS_MONITOR.MONITORING,
       {
         mensaje:
-          "Buscando una oportunidad técnica."
+          `${contexto.mercado || "Mercado seleccionado"}. Buscando entrada.`
       }
     );
 
@@ -437,21 +466,23 @@ export function crearMonitorOportunidades(
       "Monitor de oportunidades activado.",
       "exito"
     );
+
+    return true;
   }
 
 
   /* ===================================================
-  11. DETENER MONITOREO
+  11. DETENER
   =================================================== */
 
   function detener(
     motivo =
-      "Monitor detenido manualmente."
+      "Monitor detenido."
   ) {
     activo = false;
 
     limpiarTemporizadores();
-    reiniciarCandidato();
+    reiniciarCandidatura();
 
     cambiarEstado(
       ESTADOS_MONITOR.INACTIVE,
@@ -464,6 +495,8 @@ export function crearMonitorOportunidades(
       motivo,
       "advertencia"
     );
+
+    return true;
   }
 
 
@@ -471,16 +504,12 @@ export function crearMonitorOportunidades(
   12. VALIDAR RESULTADO
   =================================================== */
 
-  function resultadoValido(
-    resultado
-  ) {
+  function resultadoValido(resultado) {
     return Boolean(
       resultado &&
       typeof resultado === "object" &&
-      typeof resultado.estrategia ===
-        "string" &&
-      typeof resultado.direccion ===
-        "string" &&
+      typeof resultado.estrategia === "string" &&
+      typeof resultado.direccion === "string" &&
       Number.isFinite(
         Number(resultado.puntaje)
       )
@@ -488,130 +517,142 @@ export function crearMonitorOportunidades(
   }
 
 
-  function resultadoEsEspera(
-    resultado
-  ) {
-    return (
-      !resultado ||
-      resultado.direccion ===
-        "WAIT" ||
-      resultado.estado ===
-        "MONITORING"
+  function mismaCandidatura(resultado) {
+    return Boolean(
+      resultado &&
+      resultado.direccion === direccionCandidata &&
+      resultado.estrategia === estrategiaCandidata
     );
   }
 
 
-  function mismaCandidatura(
-    resultado
-  ) {
+  function resultadoContrario(resultado) {
     return Boolean(
-      resultado &&
-      resultado.direccion ===
-        direccionCandidata &&
-      resultado.estrategia ===
-        estrategiaCandidata
+      direccionValida(resultado) &&
+      direccionCandidata &&
+      resultado.direccion !== direccionCandidata
     );
   }
 
 
   /* ===================================================
-  13. PREPARE
+  13. CANDIDATA INTERNA
   =================================================== */
 
-  function activarPrepare(
-    resultado
-  ) {
+  function activarCandidata(resultado) {
     resultadoActual =
-      copiarResultado(
-        resultado
-      );
+      copiarResultado(resultado);
+
+    cambiarEstado(
+      ESTADOS_MONITOR.CANDIDATE,
+      {
+        mensaje:
+          "Se detectó una configuración preliminar. Validando estabilidad."
+      }
+    );
+
+    emitir("candidata", {
+      resultado:
+        copiarResultado(resultadoActual),
+
+      contexto: {
+        ...contexto
+      },
+
+      ciclos:
+        ciclosMismaDireccion
+    });
+
+    diagnostico(
+      `Candidatura interna: ${resultado.direccion} · ${resultado.puntaje}/100.`
+    );
+  }
+
+
+  /* ===================================================
+  14. PREPARE
+  =================================================== */
+
+  function activarPrepare(resultado) {
+    resultadoActual =
+      copiarResultado(resultado);
 
     inicioPrepare = ahora();
+    ciclosDebiles = 0;
+    ciclosContrarios = 0;
 
     cambiarEstado(
       ESTADOS_MONITOR.PREPARE,
       {
         mensaje:
-          `Posible ${resultado.direccion}. Prepare la operación.`,
-        repeticiones
+          `Posible ${resultado.direccion}. Prepare la operación y espere confirmación.`
       }
     );
 
-    emitir(
-      "prepare",
-      {
-        resultado:
-          copiarResultado(
-            resultadoActual
-          ),
+    emitir("prepare", {
+      resultado:
+        copiarResultado(resultadoActual),
 
-        contexto: {
-          ...contexto
-        },
+      contexto: {
+        ...contexto
+      },
 
-        repeticiones
-      }
-    );
+      ciclos:
+        ciclosMismaDireccion
+    });
 
     diagnostico(
-      `Prealerta: posible ${resultado.direccion} con puntaje ${resultado.puntaje}.`,
+      `PREPARE: ${resultado.direccion} · ${resultado.puntaje}/100.`,
       "advertencia"
     );
 
     limpiarTemporizadorPrepare();
 
     temporizadorPrepare =
-      setTimeout(
-        () => {
-          if (
-            estadoActual ===
-            ESTADOS_MONITOR.PREPARE
-          ) {
-            cancelarOportunidad(
-              "La oportunidad no logró confirmarse a tiempo."
-            );
-          }
-        },
-        configuracion
-          .tiempoMaximoPrepare
-      );
+      setTimeout(() => {
+        if (
+          activo &&
+          estadoActual === ESTADOS_MONITOR.PREPARE
+        ) {
+          cancelarOportunidad(
+            "La oportunidad no logró confirmarse dentro del tiempo permitido."
+          );
+        }
+      }, configuracion.tiempoMaximoPrepare);
   }
 
 
   /* ===================================================
-  14. CONFIRMACIÓN
+  15. CONFIRMAR
   =================================================== */
 
-  function puedeConfirmar(
-    resultado
-  ) {
-    const tiempoDesdeUltimaSenal =
-      ahora() -
-      ultimaSenalConfirmada;
+  function puedeConfirmar(resultado) {
+    const tiempoEnPrepare =
+      ahora() - inicioPrepare;
+
+    const tiempoDesdeAnterior =
+      ahora() - ultimaConfirmacion;
 
     return Boolean(
-      resultado.puntaje >=
-        configuracion
-          .puntajeMinimoConfirmado &&
-      repeticiones >=
-        configuracion
-          .ciclosMinimosConfirmacion &&
-      tiempoDesdeUltimaSenal >=
-        configuracion
-          .intervaloMinimoEntreSenales
+      estadoActual === ESTADOS_MONITOR.PREPARE &&
+      obtenerPuntaje(resultado) >=
+        configuracion.puntajeConfirmado &&
+      ciclosMismaDireccion >=
+        configuracion.ciclosParaConfirmar &&
+      tiempoEnPrepare >=
+        configuracion.tiempoMinimoPrepare &&
+      ciclosContrarios === 0 &&
+      tiempoDesdeAnterior >=
+        configuracion.intervaloEntreSenales
     );
   }
 
 
-  function confirmarOportunidad(
-    resultado
-  ) {
+  function confirmarOportunidad(resultado) {
     limpiarTemporizadorPrepare();
 
     resultadoActual =
-      copiarResultado(
-        resultado
-      );
+      copiarResultado(resultado);
 
     resultadoActual.estado =
       "CONFIRMED";
@@ -619,43 +660,39 @@ export function crearMonitorOportunidades(
     resultadoActual.ejecutable =
       true;
 
-    ultimaSenalConfirmada =
-      ahora();
+    ultimaConfirmacion = ahora();
 
     cambiarEstado(
       ESTADOS_MONITOR.CONFIRMED,
       {
         mensaje:
-          `${resultado.direccion} confirmado. Ejecute ahora.`,
-        repeticiones
+          `${resultado.direccion} confirmado. Ejecute ahora.`
       }
     );
 
-    emitir(
-      "confirmado",
-      {
-        resultado:
-          copiarResultado(
-            resultadoActual
-          ),
+    emitir("confirmado", {
+      resultado:
+        copiarResultado(resultadoActual),
 
-        contexto: {
-          ...contexto
-        },
+      contexto: {
+        ...contexto
+      },
 
-        repeticiones
-      }
-    );
+      ciclos:
+        ciclosMismaDireccion
+    });
 
     diagnostico(
-      `Oportunidad confirmada: ${resultado.direccion} · ${resultado.puntaje}/100.`,
+      `CONFIRMED: ${resultado.direccion} · ${resultado.puntaje}/100.`,
       "exito"
     );
+
+    return true;
   }
 
 
   /* ===================================================
-  15. EJECUCIÓN
+  16. EJECUCIÓN
   =================================================== */
 
   function marcarEjecutando() {
@@ -670,7 +707,7 @@ export function crearMonitorOportunidades(
       ESTADOS_MONITOR.EXECUTING,
       {
         mensaje:
-          "La señal se encuentra en ejecución."
+          "La señal se encuentra dentro de la ventana de ejecución."
       }
     );
 
@@ -679,7 +716,7 @@ export function crearMonitorOportunidades(
 
 
   /* ===================================================
-  16. CANCELAR OPORTUNIDAD
+  17. CANCELAR
   =================================================== */
 
   function cancelarOportunidad(
@@ -688,12 +725,9 @@ export function crearMonitorOportunidades(
     regresarAlMonitoreo = true
   ) {
     const resultadoCancelado =
-      copiarResultado(
-        resultadoActual
-      );
+      copiarResultado(resultadoActual);
 
     limpiarTemporizadorPrepare();
-    limpiarTemporizadorConfirmacion();
 
     cambiarEstado(
       ESTADOS_MONITOR.CANCELLED,
@@ -704,49 +738,50 @@ export function crearMonitorOportunidades(
       }
     );
 
-    emitir(
-      "cancelado",
-      {
-        motivo,
-        resultado:
-          resultadoCancelado,
+    emitir("cancelado", {
+      motivo,
 
-        contexto: {
-          ...contexto
-        }
+      resultado:
+        resultadoCancelado,
+
+      contexto: {
+        ...contexto
       }
-    );
+    });
 
     diagnostico(
       motivo,
       "advertencia"
     );
 
-    reiniciarCandidato();
+    reiniciarCandidatura();
 
     if (
-      regresarAlMonitoreo &&
-      activo
+      activo &&
+      regresarAlMonitoreo
     ) {
-      temporizadorConfirmacion =
-        setTimeout(
-          () => {
+      limpiarTemporizadorTransicion();
+
+      temporizadorTransicion =
+        setTimeout(() => {
+          if (activo) {
             cambiarEstado(
               ESTADOS_MONITOR.MONITORING,
               {
                 mensaje:
-                  "Buscando una nueva oportunidad."
+                  "Continuando la búsqueda de una entrada."
               }
             );
-          },
-          1200
-        );
+          }
+        }, configuracion.tiempoMostrarCancelacion);
     }
+
+    return true;
   }
 
 
   /* ===================================================
-  17. REGISTRAR RESULTADO
+  18. REGISTRAR RESULTADO
   =================================================== */
 
   function registrarResultado({
@@ -755,13 +790,11 @@ export function crearMonitorOportunidades(
     datos = {}
   } = {}) {
     if (
-      estadoActual !==
-        ESTADOS_MONITOR.CONFIRMED &&
-      estadoActual !==
-        ESTADOS_MONITOR.EXECUTING
+      estadoActual !== ESTADOS_MONITOR.CONFIRMED &&
+      estadoActual !== ESTADOS_MONITOR.EXECUTING
     ) {
       diagnostico(
-        "Se intentó registrar un resultado sin una señal activa.",
+        "No existe una señal activa para registrar el resultado.",
         "advertencia"
       );
 
@@ -769,9 +802,7 @@ export function crearMonitorOportunidades(
     }
 
     const resultadoEvaluado =
-      copiarResultado(
-        resultadoActual
-      );
+      copiarResultado(resultadoActual);
 
     const exitoso =
       Boolean(acierto);
@@ -779,94 +810,92 @@ export function crearMonitorOportunidades(
     cambiarEstado(
       ESTADOS_MONITOR.RESULT,
       {
-        acierto: exitoso,
-        mensaje: exitoso
-          ? "La predicción fue acertada."
-          : "La predicción no fue acertada.",
+        acierto:
+          exitoso,
+
+        mensaje:
+          exitoso
+            ? "La predicción fue acertada."
+            : "La predicción no fue acertada.",
+
         detalle,
         datos
       }
     );
 
-    emitir(
-      "resultado",
-      {
-        acierto: exitoso,
-        resultado:
-          resultadoEvaluado,
-        detalle,
-        datos,
+    emitir("resultado", {
+      acierto:
+        exitoso,
 
-        contexto: {
-          ...contexto
-        }
+      resultado:
+        resultadoEvaluado,
+
+      detalle,
+      datos,
+
+      contexto: {
+        ...contexto
       }
-    );
+    });
 
     diagnostico(
       exitoso
-        ? "Resultado registrado: ACIERTO."
-        : "Resultado registrado: FALLO.",
+        ? "Resultado: ACIERTO."
+        : "Resultado: FALLO.",
+
       exitoso
         ? "exito"
         : "error"
     );
 
-    reiniciarCandidato();
+    reiniciarCandidatura();
 
     limpiarTemporizadorResultado();
 
     temporizadorResultado =
-      setTimeout(
-        () => {
-          if (activo) {
-            cambiarEstado(
-              ESTADOS_MONITOR.MONITORING,
-              {
-                mensaje:
-                  "Señal finalizada. Buscando una nueva oportunidad."
-              }
-            );
-          } else {
-            cambiarEstado(
-              ESTADOS_MONITOR.INACTIVE,
-              {
-                mensaje:
-                  "Señal finalizada."
-              }
-            );
-          }
-        },
-        configuracion
-          .tiempoVisibleResultado
-      );
+      setTimeout(() => {
+        if (activo) {
+          cambiarEstado(
+            ESTADOS_MONITOR.MONITORING,
+            {
+              mensaje:
+                "Señal finalizada. Buscando una nueva entrada."
+            }
+          );
+        } else {
+          cambiarEstado(
+            ESTADOS_MONITOR.INACTIVE,
+            {
+              mensaje:
+                "Señal finalizada."
+            }
+          );
+        }
+      }, configuracion.tiempoMostrarResultado);
 
     return true;
   }
 
 
   /* ===================================================
-  18. PROCESAR PREDICCIÓN
+  19. PROCESAR CADA ANÁLISIS
   =================================================== */
 
-  function procesar(
-    resultado
-  ) {
+  function procesar(resultado) {
     if (!activo) {
       return {
         estado:
           ESTADOS_MONITOR.INACTIVE,
-        procesado: false,
+
+        procesado:
+          false,
+
         razon:
           "El monitor está apagado."
       };
     }
 
-    if (
-      !resultadoValido(
-        resultado
-      )
-    ) {
+    if (!resultadoValido(resultado)) {
       diagnostico(
         "El motor entregó un resultado inválido.",
         "error"
@@ -875,70 +904,202 @@ export function crearMonitorOportunidades(
       return {
         estado:
           estadoActual,
-        procesado: false,
+
+        procesado:
+          false,
+
         razon:
           "Resultado inválido."
       };
     }
 
+    /*
+    Mientras existe una señal confirmada, no se reemplaza
+    por otra predicción.
+    */
     if (
       [
         ESTADOS_MONITOR.CONFIRMED,
         ESTADOS_MONITOR.EXECUTING,
         ESTADOS_MONITOR.RESULT
-      ].includes(
-        estadoActual
-      )
+      ].includes(estadoActual)
     ) {
       return {
         estado:
           estadoActual,
-        procesado: false,
+
+        procesado:
+          false,
+
         razon:
           "Existe una señal activa."
       };
     }
 
+    const puntaje =
+      obtenerPuntaje(resultado);
+
+    /*
+    -----------------------------------------------------
+    RESULTADO WAIT O MUY DÉBIL
+    -----------------------------------------------------
+    */
+
     if (
-      resultadoEsEspera(
-        resultado
-      )
+      !direccionValida(resultado) ||
+      puntaje <
+        configuracion.puntajeCandidata
     ) {
       if (
-        estadoActual ===
-        ESTADOS_MONITOR.PREPARE
+        estadoActual === ESTADOS_MONITOR.PREPARE
       ) {
-        cancelarOportunidad(
-          "La configuración perdió fuerza antes de confirmarse."
-        );
-      } else {
+        ciclosDebiles++;
+
+        /*
+        No cancelar inmediatamente.
+        */
+        if (
+          ciclosDebiles >
+            configuracion.ciclosDebilesPermitidos &&
+          puntaje <
+            configuracion.puntajeCancelacionPrepare
+        ) {
+          cancelarOportunidad(
+            "La configuración perdió fuerza durante varios análisis."
+          );
+        }
+
+        return {
+          estado:
+            estadoActual,
+
+          procesado:
+            true,
+
+          tolerancia:
+            true,
+
+          ciclosDebiles
+        };
+      }
+
+      reiniciarCandidatura();
+
+      if (
+        estadoActual !==
+        ESTADOS_MONITOR.MONITORING
+      ) {
         cambiarEstado(
           ESTADOS_MONITOR.MONITORING,
           {
             mensaje:
-              "Analizando el mercado.",
-            puntaje:
-              resultado.puntaje || 0
+              "Buscando una configuración más sólida."
           }
         );
       }
 
-      reiniciarCandidato();
-
       return {
         estado:
           ESTADOS_MONITOR.MONITORING,
-        procesado: true,
+
+        procesado:
+          true,
+
         resultado
       };
     }
 
+    /*
+    -----------------------------------------------------
+    DIRECCIÓN CONTRARIA
+    -----------------------------------------------------
+    */
+
     if (
-      mismaCandidatura(
-        resultado
-      )
+      resultadoContrario(resultado)
     ) {
-      repeticiones++;
+      ciclosContrarios++;
+
+      /*
+      Una sola lectura contraria no elimina PREPARE.
+      */
+      if (
+        estadoActual === ESTADOS_MONITOR.PREPARE &&
+        ciclosContrarios <
+          configuracion.ciclosContrariosParaCancelar
+      ) {
+        diagnostico(
+          `Lectura contraria tolerada: ${ciclosContrarios}/${configuracion.ciclosContrariosParaCancelar}.`,
+          "advertencia"
+        );
+
+        return {
+          estado:
+            estadoActual,
+
+          procesado:
+            true,
+
+          tolerancia:
+            true,
+
+          ciclosContrarios
+        };
+      }
+
+      if (
+        estadoActual === ESTADOS_MONITOR.PREPARE
+      ) {
+        cancelarOportunidad(
+          "La dirección contraria se mantuvo durante varios análisis."
+        );
+
+        return {
+          estado:
+            ESTADOS_MONITOR.CANCELLED,
+
+          procesado:
+            true
+        };
+      }
+
+      /*
+      Fuera de PREPARE, se sustituye la candidatura.
+      */
+      direccionCandidata =
+        resultado.direccion;
+
+      estrategiaCandidata =
+        resultado.estrategia;
+
+      ciclosMismaDireccion = 1;
+      ciclosDebiles = 0;
+      ciclosContrarios = 0;
+
+      resultadoActual =
+        copiarResultado(resultado);
+
+      return {
+        estado:
+          estadoActual,
+
+        procesado:
+          true,
+
+        ciclosMismaDireccion
+      };
+    }
+
+    /*
+    -----------------------------------------------------
+    MISMA DIRECCIÓN
+    -----------------------------------------------------
+    */
+
+    if (
+      mismaCandidatura(resultado)
+    ) {
+      ciclosMismaDireccion++;
     } else {
       direccionCandidata =
         resultado.direccion;
@@ -946,80 +1107,88 @@ export function crearMonitorOportunidades(
       estrategiaCandidata =
         resultado.estrategia;
 
-      repeticiones = 1;
+      ciclosMismaDireccion = 1;
     }
+
+    ciclosDebiles = 0;
+    ciclosContrarios = 0;
 
     resultadoAnterior =
       resultadoActual;
 
     resultadoActual =
-      copiarResultado(
-        resultado
-      );
+      copiarResultado(resultado);
 
-    const alcanzaPrepare =
-      resultado.puntaje >=
-        configuracion
-          .puntajeMinimoPrepare &&
-      repeticiones >=
-        configuracion
-          .ciclosMinimosPrepare;
+    /*
+    -----------------------------------------------------
+    CANDIDATA INTERNA
+    -----------------------------------------------------
+    */
 
     if (
-      alcanzaPrepare &&
-      estadoActual !==
-        ESTADOS_MONITOR.PREPARE
+      estadoActual === ESTADOS_MONITOR.MONITORING &&
+      ciclosMismaDireccion >=
+        configuracion.ciclosParaCandidata &&
+      puntaje >=
+        configuracion.puntajeCandidata
     ) {
-      activarPrepare(
-        resultado
-      );
+      activarCandidata(resultado);
     }
 
-    if (
-      estadoActual ===
-        ESTADOS_MONITOR.PREPARE &&
-      puedeConfirmar(
-        resultado
-      )
-    ) {
-      confirmarOportunidad(
-        resultado
-      );
-    }
+    /*
+    -----------------------------------------------------
+    PREPARE
+    -----------------------------------------------------
+    */
 
     if (
-      resultado.puntaje <
-        configuracion
-          .puntajeMinimoPrepare &&
-      estadoActual ===
-        ESTADOS_MONITOR.PREPARE
+      [
+        ESTADOS_MONITOR.MONITORING,
+        ESTADOS_MONITOR.CANDIDATE
+      ].includes(estadoActual) &&
+      ciclosMismaDireccion >=
+        configuracion.ciclosParaPrepare &&
+      puntaje >=
+        configuracion.puntajePrepare
     ) {
-      cancelarOportunidad(
-        "El Signal Score descendió antes de confirmar la entrada."
-      );
+      activarPrepare(resultado);
+    }
+
+    /*
+    -----------------------------------------------------
+    CONFIRMED
+    -----------------------------------------------------
+    */
+
+    if (puedeConfirmar(resultado)) {
+      confirmarOportunidad(resultado);
     }
 
     return {
       estado:
         estadoActual,
-      procesado: true,
-      repeticiones,
+
+      procesado:
+        true,
 
       resultado:
-        copiarResultado(
-          resultadoActual
-        )
+        copiarResultado(resultadoActual),
+
+      ciclosMismaDireccion,
+      ciclosDebiles,
+      ciclosContrarios
     };
   }
 
 
   /* ===================================================
-  19. CONSULTAS
+  20. CONSULTAS
   =================================================== */
 
   function obtenerEstado() {
     return {
       activo,
+
       estado:
         estadoActual,
 
@@ -1035,10 +1204,13 @@ export function crearMonitorOportunidades(
 
       direccionCandidata,
       estrategiaCandidata,
-      repeticiones,
+
+      ciclosMismaDireccion,
+      ciclosDebiles,
+      ciclosContrarios,
 
       inicioPrepare,
-      ultimaSenalConfirmada,
+      ultimaConfirmacion,
 
       contexto: {
         ...contexto
@@ -1063,9 +1235,7 @@ export function crearMonitorOportunidades(
     return [
       ESTADOS_MONITOR.CONFIRMED,
       ESTADOS_MONITOR.EXECUTING
-    ].includes(
-      estadoActual
-    );
+    ].includes(estadoActual);
   }
 
 
@@ -1078,18 +1248,16 @@ export function crearMonitorOportunidades(
 
 
   /* ===================================================
-  20. DESTRUIR
+  21. DESTRUIR
   =================================================== */
 
   function destruir() {
     activo = false;
 
     limpiarTemporizadores();
-    reiniciarCandidato();
+    reiniciarCandidatura();
 
-    Object.keys(
-      escuchas
-    ).forEach(
+    Object.keys(escuchas).forEach(
       (evento) => {
         escuchas[evento] = [];
       }
@@ -1101,7 +1269,7 @@ export function crearMonitorOportunidades(
 
 
   /* ===================================================
-  21. API PÚBLICA
+  22. API PÚBLICA
   =================================================== */
 
   return {
@@ -1130,7 +1298,7 @@ export function crearMonitorOportunidades(
 
 
 /* =====================================================
-22. INSTANCIA PRINCIPAL
+23. INSTANCIA PRINCIPAL
 ===================================================== */
 
 export const monitorOportunidades =
