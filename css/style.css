@@ -1,0 +1,2405 @@
+/* =========================================================
+   TRADING ANALYST V8 PRO
+   Archivo: css/style.css
+   Diseño profesional Glass / Responsive
+========================================================= */
+
+
+/* =========================================================
+   1. VARIABLES GENERALES
+========================================================= */
+
+:root {
+  color-scheme: dark;
+
+  --fondo-principal: #020711;
+  --fondo-secundario: #061321;
+  --fondo-terciario: #0a1d30;
+
+  --cristal:
+    linear-gradient(
+      145deg,
+      rgba(22, 55, 80, 0.60),
+      rgba(4, 16, 29, 0.82)
+    );
+
+  --cristal-claro:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0.035)
+    );
+
+  --texto-principal: #f3fbff;
+  --texto-secundario: #a0b6c8;
+  --texto-suave: #6f8799;
+
+  --verde: #50e5a4;
+  --verde-claro: #8ff5ca;
+  --verde-oscuro: #0d7c59;
+
+  --rojo: #ff6680;
+  --rojo-claro: #ff97a9;
+
+  --amarillo: #ffd166;
+  --azul: #72a8ff;
+  --cian: #58d9ff;
+  --morado: #a98bff;
+
+  --borde:
+    rgba(125, 218, 255, 0.16);
+
+  --borde-fuerte:
+    rgba(125, 218, 255, 0.34);
+
+  --sombra:
+    0 24px 70px rgba(0, 0, 0, 0.38);
+
+  --radio-grande: 26px;
+  --radio-mediano: 18px;
+  --radio-pequeno: 13px;
+
+  --transicion:
+    0.18s ease;
+}
+
+
+/* =========================================================
+   2. REINICIO BÁSICO
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+
+  color: var(--texto-principal);
+
+  background:
+    radial-gradient(
+      circle at 12% -8%,
+      rgba(44, 135, 198, 0.34),
+      transparent 33%
+    ),
+    radial-gradient(
+      circle at 100% 18%,
+      rgba(46, 223, 169, 0.13),
+      transparent 27%
+    ),
+    linear-gradient(
+      180deg,
+      #071522 0%,
+      #020711 100%
+    );
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+select,
+input {
+  font-size: 16px;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--cian);
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   3. FONDO DECORATIVO
+========================================================= */
+
+.fondo-cuadricula {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+
+  pointer-events: none;
+
+  opacity: 0.24;
+
+  background-image:
+    linear-gradient(
+      rgba(90, 217, 255, 0.055) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(90, 217, 255, 0.055) 1px,
+      transparent 1px
+    );
+
+  background-size: 32px 32px;
+
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent 90%
+    );
+}
+
+
+/* =========================================================
+   4. CONTENEDOR PRINCIPAL
+========================================================= */
+
+.aplicacion {
+  position: relative;
+  z-index: 1;
+
+  width: min(100% - 16px, 1050px);
+
+  margin: 0 auto;
+
+  padding:
+    max(12px, env(safe-area-inset-top))
+    0
+    50px;
+}
+
+
+/* =========================================================
+   5. TARJETAS GLASS
+========================================================= */
+
+.glass-card {
+  width: 100%;
+  min-width: 0;
+
+  margin-bottom: 14px;
+  padding: 20px;
+
+  overflow: hidden;
+
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-grande);
+
+  background: var(--cristal);
+
+  box-shadow: var(--sombra);
+
+  backdrop-filter:
+    blur(19px)
+    saturate(125%);
+
+  -webkit-backdrop-filter:
+    blur(19px)
+    saturate(125%);
+}
+
+
+/* =========================================================
+   6. ENCABEZADO
+========================================================= */
+
+.encabezado {
+  display: grid;
+
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 14px;
+}
+
+.logotipo {
+  display: grid;
+  place-items: center;
+
+  width: 58px;
+  height: 58px;
+
+  border: 1px solid
+    rgba(80, 229, 164, 0.50);
+
+  border-radius: 20px;
+
+  color: var(--verde);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(80, 229, 164, 0.22),
+      rgba(88, 217, 255, 0.07)
+    );
+
+  box-shadow:
+    inset 0 1px
+      rgba(255, 255, 255, 0.18),
+    0 0 30px
+      rgba(80, 229, 164, 0.12);
+
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.marca {
+  min-width: 0;
+}
+
+.texto-superior {
+  margin: 0 0 5px;
+
+  color: var(--cian);
+
+  font-size: 0.68rem;
+  font-weight: 900;
+
+  letter-spacing: 0.15em;
+
+  text-transform: uppercase;
+}
+
+.marca h1 {
+  margin: 0;
+
+  font-size:
+    clamp(
+      1.5rem,
+      7vw,
+      2.5rem
+    );
+
+  line-height: 1;
+
+  letter-spacing: -0.045em;
+}
+
+.marca h1 span {
+  color: var(--verde);
+}
+
+.subtitulo {
+  margin: 7px 0 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   7. BOTÓN DE VOZ
+========================================================= */
+
+.boton-icono {
+  display: grid;
+  place-items: center;
+
+  width: 46px;
+  height: 46px;
+
+  flex: 0 0 auto;
+
+  padding: 0;
+
+  border: 1px solid var(--borde);
+  border-radius: 15px;
+
+  color: var(--texto-principal);
+
+  background:
+    rgba(255, 255, 255, 0.055);
+
+  box-shadow:
+    inset 0 1px
+      rgba(255, 255, 255, 0.13);
+
+  cursor: pointer;
+
+  transition:
+    transform var(--transicion),
+    border-color var(--transicion),
+    background var(--transicion);
+}
+
+.boton-icono:active {
+  transform: scale(0.95);
+}
+
+.boton-icono.voz-activa {
+  border-color:
+    rgba(80, 229, 164, 0.5);
+
+  background:
+    rgba(80, 229, 164, 0.13);
+
+  box-shadow:
+    inset 0 1px
+      rgba(255, 255, 255, 0.13),
+    0 0 18px
+      rgba(80, 229, 164, 0.1);
+}
+
+
+/* =========================================================
+   8. PANEL DE ESTADOS
+========================================================= */
+
+.panel-estados {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+
+  padding: 12px;
+}
+
+.estado-item {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+
+  gap: 9px;
+
+  padding: 11px;
+
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+
+  background:
+    rgba(255, 255, 255, 0.035);
+}
+
+.estado-item > div {
+  min-width: 0;
+}
+
+.estado-item small {
+  display: block;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.61rem;
+  font-weight: 850;
+
+  letter-spacing: 0.08em;
+}
+
+.estado-item strong {
+  display: block;
+
+  margin-top: 3px;
+
+  overflow: hidden;
+
+  font-size: 0.76rem;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.punto-estado {
+  width: 10px;
+  height: 10px;
+
+  flex: 0 0 auto;
+
+  border-radius: 50%;
+
+  background: #65798a;
+}
+
+.estado-item.live .punto-estado,
+.estado-item.motor-encendido .punto-estado,
+.estado-item.monitoreo-activo .punto-estado {
+  background: var(--verde);
+
+  box-shadow:
+    0 0 14px
+      rgba(80, 229, 164, 0.82);
+}
+
+.estado-item.connecting .punto-estado,
+.estado-item.prepare .punto-estado {
+  background: var(--amarillo);
+
+  animation:
+    pulso-estado
+    1s
+    infinite;
+}
+
+.estado-item.error .punto-estado {
+  background: var(--rojo);
+}
+
+.estado-item.memoria .punto-estado {
+  background: var(--cian);
+}
+
+@keyframes pulso-estado {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
+}
+
+
+/* =========================================================
+   9. TÍTULOS DE SECCIÓN
+========================================================= */
+
+.titulo-seccion {
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  margin-bottom: 16px;
+}
+
+.titulo-seccion > span {
+  display: grid;
+  place-items: center;
+
+  width: 40px;
+  height: 40px;
+
+  flex: 0 0 auto;
+
+  border: 1px solid
+    rgba(88, 217, 255, 0.36);
+
+  border-radius: 13px;
+
+  color: var(--cian);
+
+  background:
+    rgba(88, 217, 255, 0.1);
+
+  font-weight: 950;
+}
+
+.titulo-seccion div {
+  min-width: 0;
+}
+
+.titulo-seccion p {
+  margin: 0 0 3px;
+
+  color: var(--cian);
+
+  font-size: 0.62rem;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.titulo-seccion h2,
+.cabecera-tarjeta h2 {
+  margin: 0;
+
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+
+/* =========================================================
+   10. BOTONES PRINCIPALES
+========================================================= */
+
+.grupo-botones {
+  display: flex;
+
+  gap: 10px;
+}
+
+.grupo-botones + .grupo-botones {
+  margin-top: 10px;
+}
+
+.boton-glass {
+  min-height: 50px;
+
+  padding: 0 16px;
+
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+
+  color: var(--texto-principal);
+
+  background: var(--cristal-claro);
+
+  box-shadow:
+    inset 0 1px
+      rgba(255, 255, 255, 0.16),
+    0 10px 28px
+      rgba(0, 0, 0, 0.18);
+
+  font-weight: 900;
+  letter-spacing: 0.02em;
+
+  cursor: pointer;
+
+  transition:
+    transform var(--transicion),
+    opacity var(--transicion),
+    border-color var(--transicion),
+    background var(--transicion);
+}
+
+.boton-glass:active:not(:disabled) {
+  transform: scale(0.975);
+}
+
+.boton-glass:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
+.boton-conectar {
+  flex: 1.2;
+
+  border-color:
+    rgba(80, 229, 164, 0.45);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(80, 229, 164, 0.25),
+      rgba(80, 229, 164, 0.055)
+    );
+}
+
+.boton-desconectar {
+  flex: 0.8;
+
+  border-color:
+    rgba(255, 102, 128, 0.3);
+}
+
+.boton-motor {
+  flex: 1;
+
+  border-color:
+    rgba(255, 209, 102, 0.36);
+}
+
+.boton-motor.encendido {
+  border-color:
+    rgba(80, 229, 164, 0.52);
+
+  background:
+    rgba(80, 229, 164, 0.15);
+}
+
+.boton-prediccion {
+  flex: 0.8;
+
+  border-color:
+    rgba(88, 217, 255, 0.46);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(88, 217, 255, 0.23),
+      rgba(114, 168, 255, 0.055)
+    );
+}
+
+.boton-nueva-senal,
+.boton-probar-voz {
+  width: 100%;
+
+  margin-top: 13px;
+
+  border-color:
+    rgba(80, 229, 164, 0.38);
+}
+
+.texto-ayuda {
+  margin: 12px 0 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.79rem;
+  line-height: 1.48;
+}
+
+
+/* =========================================================
+   11. CONFIGURACIÓN
+========================================================= */
+
+.rejilla-configuracion {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+.campo-control {
+  display: block;
+
+  min-width: 0;
+}
+
+.campo-control small,
+.rejilla-voz label small {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.64rem;
+  font-weight: 850;
+
+  letter-spacing: 0.08em;
+}
+
+.campo-control select,
+.selector-personalizado,
+.rejilla-voz select {
+  width: 100%;
+  min-height: 54px;
+
+  padding: 0 14px;
+
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+
+  color: var(--texto-principal);
+
+  background:
+    rgba(4, 18, 31, 0.88);
+
+  outline: none;
+}
+
+.selector-personalizado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.selector-personalizado span {
+  min-width: 0;
+}
+
+.selector-personalizado strong,
+.selector-personalizado em {
+  display: block;
+}
+
+.selector-personalizado strong {
+  overflow: hidden;
+
+  font-size: 0.84rem;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selector-personalizado em {
+  margin-top: 3px;
+
+  color: var(--cian);
+
+  font-size: 0.67rem;
+  font-style: normal;
+}
+
+.selector-personalizado i {
+  color: var(--texto-secundario);
+
+  font-size: 1.15rem;
+  font-style: normal;
+}
+
+
+/* =========================================================
+   12. PANEL DE MONITOREO
+========================================================= */
+
+.panel-monitoreo {
+  display: grid;
+
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 16px;
+
+  border: 1px solid var(--borde);
+  border-radius: 19px;
+
+  background:
+    rgba(255, 255, 255, 0.034);
+
+  transition:
+    border-color var(--transicion),
+    background var(--transicion);
+}
+
+.animacion-radar {
+  position: relative;
+
+  display: grid;
+  place-items: center;
+
+  width: 60px;
+  height: 60px;
+
+  flex: 0 0 auto;
+}
+
+.radar-circulo,
+.radar-centro {
+  position: absolute;
+
+  border-radius: 50%;
+}
+
+.radar-circulo {
+  border: 1px solid
+    rgba(88, 217, 255, 0.36);
+}
+
+.radar-circulo.uno {
+  width: 42px;
+  height: 42px;
+}
+
+.radar-circulo.dos {
+  width: 58px;
+  height: 58px;
+}
+
+.radar-centro {
+  width: 10px;
+  height: 10px;
+
+  background: var(--texto-suave);
+}
+
+.panel-monitoreo.monitoring {
+  border-color:
+    rgba(88, 217, 255, 0.44);
+
+  background:
+    rgba(88, 217, 255, 0.045);
+}
+
+.panel-monitoreo.monitoring
+.radar-circulo {
+  animation:
+    radar-pulso
+    1.8s
+    infinite;
+}
+
+.panel-monitoreo.monitoring
+.radar-circulo.dos {
+  animation-delay: 0.5s;
+}
+
+.panel-monitoreo.monitoring
+.radar-centro {
+  background: var(--cian);
+
+  box-shadow:
+    0 0 15px
+      rgba(88, 217, 255, 0.75);
+}
+
+.panel-monitoreo.prepare {
+  border-color:
+    rgba(255, 209, 102, 0.48);
+
+  background:
+    rgba(255, 209, 102, 0.055);
+}
+
+.panel-monitoreo.prepare
+.radar-centro {
+  background: var(--amarillo);
+}
+
+.panel-monitoreo.confirmed {
+  border-color:
+    rgba(80, 229, 164, 0.52);
+
+  background:
+    rgba(80, 229, 164, 0.06);
+}
+
+.panel-monitoreo.confirmed
+.radar-centro {
+  background: var(--verde);
+
+  box-shadow:
+    0 0 15px
+      rgba(80, 229, 164, 0.75);
+}
+
+@keyframes radar-pulso {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.55);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+.texto-monitoreo {
+  min-width: 0;
+}
+
+.texto-monitoreo small,
+.texto-monitoreo strong {
+  display: block;
+}
+
+.texto-monitoreo small {
+  color: var(--texto-secundario);
+
+  font-size: 0.63rem;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.texto-monitoreo strong {
+  margin-top: 4px;
+
+  font-size: 0.92rem;
+}
+
+.texto-monitoreo p {
+  margin: 5px 0 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.77rem;
+  line-height: 1.42;
+}
+
+.boton-cancelar {
+  min-height: 36px;
+
+  padding: 0 11px;
+
+  border: 1px solid
+    rgba(255, 102, 128, 0.34);
+
+  border-radius: 11px;
+
+  color: var(--rojo);
+
+  background:
+    rgba(255, 102, 128, 0.07);
+
+  font-size: 0.67rem;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+   13. MERCADO EN VIVO
+========================================================= */
+
+.cabecera-tarjeta {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 13px;
+}
+
+.insignia-datos {
+  padding: 7px 11px;
+
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+
+  color: var(--texto-secundario);
+
+  background:
+    rgba(255, 255, 255, 0.04);
+
+  font-size: 0.67rem;
+  font-weight: 850;
+
+  white-space: nowrap;
+}
+
+.insignia-datos.live {
+  border-color:
+    rgba(80, 229, 164, 0.45);
+
+  color: var(--verde);
+
+  background:
+    rgba(80, 229, 164, 0.08);
+}
+
+.precio-actual {
+  margin: 25px 0;
+
+  text-align: center;
+
+  font-size:
+    clamp(
+      2.9rem,
+      14vw,
+      6rem
+    );
+
+  font-weight: 950;
+  line-height: 1;
+
+  letter-spacing: -0.058em;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  transition:
+    color var(--transicion);
+}
+
+.precio-actual.sube {
+  color: var(--verde);
+}
+
+.precio-actual.baja {
+  color: var(--rojo);
+}
+
+.rejilla-datos-mercado,
+.rejilla-fibonacci,
+.rejilla-estadisticas {
+  display: grid;
+
+  gap: 10px;
+}
+
+.rejilla-datos-mercado {
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+}
+
+.rejilla-datos-mercado article,
+.rejilla-fibonacci article,
+.rejilla-estadisticas article,
+.indicador,
+.rejilla-puntaje article {
+  min-width: 0;
+
+  padding: 14px;
+
+  border: 1px solid var(--borde);
+  border-radius: 17px;
+
+  background:
+    rgba(255, 255, 255, 0.034);
+}
+
+.rejilla-datos-mercado small,
+.rejilla-fibonacci small,
+.rejilla-estadisticas small,
+.indicador small,
+.rejilla-puntaje small {
+  display: block;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.63rem;
+  font-weight: 850;
+
+  letter-spacing: 0.07em;
+}
+
+.rejilla-datos-mercado strong,
+.rejilla-fibonacci strong,
+.rejilla-estadisticas strong {
+  display: block;
+
+  margin-top: 8px;
+
+  font-size: 1.1rem;
+}
+
+
+/* =========================================================
+   14. ÚLTIMOS DÍGITOS
+========================================================= */
+
+.contenedor-digitos {
+  margin-top: 14px;
+}
+
+.cabecera-digitos,
+.texto-progreso {
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 12px;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.72rem;
+}
+
+.lista-digitos {
+  display: flex;
+
+  gap: 7px;
+
+  margin-top: 9px;
+  padding-bottom: 4px;
+
+  overflow-x: auto;
+
+  scrollbar-width: none;
+}
+
+.lista-digitos::-webkit-scrollbar {
+  display: none;
+}
+
+.digito-item {
+  display: grid;
+  place-items: center;
+
+  min-width: 34px;
+  height: 34px;
+
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+
+  background:
+    rgba(255, 255, 255, 0.045);
+
+  font-weight: 900;
+}
+
+.digito-item.actual {
+  border-color:
+    rgba(80, 229, 164, 0.62);
+
+  color: #031d15;
+
+  background: var(--verde);
+}
+
+.mensaje-vacio {
+  color: var(--texto-secundario);
+
+  font-size: 0.79rem;
+}
+
+
+/* =========================================================
+   15. BARRA DE MEMORIA
+========================================================= */
+
+.contenedor-progreso {
+  margin-top: 15px;
+}
+
+.barra-progreso,
+.barra-puntaje {
+  height: 10px;
+
+  margin-top: 8px;
+
+  overflow: hidden;
+
+  border-radius: 999px;
+
+  background:
+    rgba(255, 255, 255, 0.07);
+}
+
+.barra-progreso span,
+.barra-puntaje span {
+  display: block;
+
+  width: 0;
+  height: 100%;
+
+  border-radius: inherit;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--azul),
+      var(--cian),
+      var(--verde)
+    );
+
+  transition:
+    width 0.28s ease;
+}
+
+
+/* =========================================================
+   16. INDICADORES
+========================================================= */
+
+.rejilla-indicadores {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+.indicador {
+  min-height: 120px;
+}
+
+.indicador strong {
+  display: block;
+
+  margin: 12px 0 7px;
+
+  font-size: 1.35rem;
+}
+
+.indicador em {
+  display: block;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.73rem;
+  font-style: normal;
+
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+   17. FIBONACCI
+========================================================= */
+
+.resumen-fibonacci {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 15px;
+
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+
+  background:
+    rgba(255, 255, 255, 0.03);
+}
+
+.resumen-fibonacci small,
+.resumen-fibonacci strong {
+  display: block;
+}
+
+.resumen-fibonacci small {
+  color: var(--texto-secundario);
+
+  font-size: 0.64rem;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.resumen-fibonacci strong {
+  margin-top: 6px;
+
+  font-size: 1.1rem;
+}
+
+.resumen-fibonacci p {
+  margin: 5px 0 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.74rem;
+  line-height: 1.42;
+}
+
+.nivel-fibonacci {
+  display: grid;
+  place-items: center;
+
+  width: 98px;
+  height: 98px;
+
+  border: 1px solid
+    rgba(88, 217, 255, 0.36);
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(88, 217, 255, 0.12),
+      rgba(80, 229, 164, 0.035)
+    );
+
+  text-align: center;
+}
+
+.nivel-fibonacci strong {
+  margin: 0;
+
+  color: var(--cian);
+
+  font-size: 1.3rem;
+}
+
+.nivel-fibonacci small {
+  width: 72px;
+
+  font-size: 0.55rem;
+  line-height: 1.2;
+}
+
+.rejilla-fibonacci {
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  margin-top: 10px;
+}
+
+.niveles-fibonacci {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(0, 1fr)
+    );
+
+  gap: 7px;
+
+  margin-top: 12px;
+}
+
+.niveles-fibonacci span {
+  display: grid;
+  place-items: center;
+
+  min-height: 38px;
+
+  border: 1px solid var(--borde);
+  border-radius: 11px;
+
+  color: var(--texto-secundario);
+
+  background:
+    rgba(255, 255, 255, 0.03);
+
+  font-size: 0.69rem;
+  font-weight: 850;
+}
+
+.niveles-fibonacci span.activo {
+  border-color:
+    rgba(80, 229, 164, 0.58);
+
+  color: var(--verde);
+
+  background:
+    rgba(80, 229, 164, 0.1);
+
+  box-shadow:
+    0 0 18px
+      rgba(80, 229, 164, 0.08);
+}
+
+
+/* =========================================================
+   18. PANEL DE SEÑAL
+========================================================= */
+
+.panel-senal {
+  overflow: hidden;
+
+  padding: 20px;
+
+  border: 1px solid var(--borde);
+  border-radius: 22px;
+
+  background:
+    rgba(1, 10, 20, 0.46);
+
+  transition:
+    border-color var(--transicion),
+    background var(--transicion);
+}
+
+.panel-senal.monitoring {
+  border-color:
+    rgba(88, 217, 255, 0.36);
+}
+
+.panel-senal.prepare {
+  border-color:
+    rgba(255, 209, 102, 0.52);
+
+  background:
+    rgba(255, 209, 102, 0.05);
+}
+
+.panel-senal.confirmed,
+.panel-senal.success {
+  border-color:
+    rgba(80, 229, 164, 0.55);
+
+  background:
+    rgba(80, 229, 164, 0.055);
+}
+
+.panel-senal.failed,
+.panel-senal.cancelled {
+  border-color:
+    rgba(255, 102, 128, 0.55);
+
+  background:
+    rgba(255, 102, 128, 0.05);
+}
+
+.estado-prediccion {
+  margin: 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.7rem;
+  font-weight: 950;
+
+  letter-spacing: 0.14em;
+}
+
+.panel-senal h3 {
+  margin: 8px 0 12px;
+
+  font-size:
+    clamp(
+      1rem,
+      4.6vw,
+      1.35rem
+    );
+
+  line-height: 1.25;
+}
+
+.valor-prediccion {
+  max-width: 100%;
+
+  margin: 8px 0 18px;
+
+  color: var(--cian);
+
+  font-size:
+    clamp(
+      2rem,
+      12vw,
+      4.8rem
+    );
+
+  font-weight: 1000;
+  line-height: 0.98;
+
+  letter-spacing: -0.055em;
+
+  overflow-wrap: anywhere;
+
+  text-align: center;
+}
+
+.panel-senal.prepare
+.valor-prediccion {
+  color: var(--amarillo);
+}
+
+.panel-senal.confirmed
+.valor-prediccion,
+.panel-senal.success
+.valor-prediccion {
+  color: var(--verde);
+}
+
+.panel-senal.failed
+.valor-prediccion,
+.panel-senal.cancelled
+.valor-prediccion {
+  color: var(--rojo);
+}
+
+.rejilla-puntaje {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 10px;
+}
+
+.rejilla-puntaje strong {
+  display: block;
+
+  margin-top: 7px;
+
+  font-size: 1rem;
+}
+
+.motivos-senal {
+  margin-top: 16px;
+
+  padding: 15px;
+
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+
+  background:
+    rgba(0, 0, 0, 0.14);
+}
+
+.motivos-senal h4 {
+  margin: 0 0 9px;
+
+  font-size: 0.77rem;
+  letter-spacing: 0.08em;
+}
+
+.motivos-senal ul {
+  margin: 0;
+  padding-left: 19px;
+
+  color: #dce9f2;
+
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.mensaje-operacion {
+  margin: 15px 0 0;
+
+  color: var(--cian);
+
+  font-size: 0.86rem;
+  font-weight: 850;
+
+  text-align: center;
+}
+
+.cuenta-regresiva {
+  min-height: 1em;
+
+  margin-top: 5px;
+
+  text-align: center;
+
+  font-size:
+    clamp(
+      2.8rem,
+      14vw,
+      6rem
+    );
+
+  font-weight: 1000;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/* =========================================================
+   19. ESTADÍSTICAS
+========================================================= */
+
+.rejilla-estadisticas {
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(0, 1fr)
+    );
+}
+
+.boton-texto {
+  min-height: 36px;
+
+  padding: 0 10px;
+
+  border: 1px solid transparent;
+  border-radius: 12px;
+
+  color: var(--texto-secundario);
+
+  background: transparent;
+
+  font-size: 0.69rem;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.boton-texto:active {
+  background:
+    rgba(255, 255, 255, 0.04);
+}
+
+
+/* =========================================================
+   20. VOZ
+========================================================= */
+
+.rejilla-voz {
+  display: grid;
+
+  grid-template-columns:
+    1.4fr
+    1fr
+    1fr
+    1fr;
+
+  gap: 10px;
+}
+
+.rejilla-voz label {
+  min-width: 0;
+
+  padding: 12px;
+
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+
+  background:
+    rgba(255, 255, 255, 0.03);
+}
+
+.rejilla-voz select {
+  min-height: 46px;
+}
+
+.rejilla-voz input {
+  width: 100%;
+
+  margin-top: 11px;
+
+  accent-color: var(--verde);
+}
+
+.rejilla-voz output {
+  display: block;
+
+  margin-top: 5px;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.71rem;
+}
+
+
+/* =========================================================
+   21. HISTORIAL
+========================================================= */
+
+.historial {
+  display: grid;
+
+  gap: 8px;
+
+  margin-top: 14px;
+}
+
+.historial-item {
+  padding: 13px;
+
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+
+  background:
+    rgba(255, 255, 255, 0.03);
+}
+
+.historial-item strong {
+  font-size: 0.84rem;
+}
+
+.historial-item p {
+  margin: 5px 0 0;
+
+  color: var(--texto-secundario);
+
+  font-size: 0.74rem;
+}
+
+
+/* =========================================================
+   22. REGISTRO
+========================================================= */
+
+.registro-actividad {
+  max-height: 230px;
+
+  margin-top: 14px;
+
+  overflow-y: auto;
+
+  color: #b9cbd8;
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+
+  font-size: 0.71rem;
+  line-height: 1.45;
+}
+
+.registro-actividad p {
+  margin: 0 0 7px;
+}
+
+.registro-actividad .exito {
+  color: var(--verde);
+}
+
+.registro-actividad .advertencia {
+  color: var(--amarillo);
+}
+
+.registro-actividad .error {
+  color: var(--rojo);
+}
+
+
+/* =========================================================
+   23. PIE DE PÁGINA
+========================================================= */
+
+.pie-pagina {
+  padding: 14px;
+
+  color: var(--texto-secundario);
+
+  text-align: center;
+
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.pie-pagina p {
+  margin: 3px 0;
+}
+
+
+/* =========================================================
+   24. DIÁLOGO DE MERCADOS
+========================================================= */
+
+.dialogo-mercados {
+  width: min(94vw, 520px);
+  max-height: 82vh;
+
+  padding: 16px;
+
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 26px;
+
+  color: var(--texto-principal);
+
+  background:
+    rgba(5, 20, 34, 0.97);
+
+  box-shadow:
+    0 30px 100px
+      rgba(0, 0, 0, 0.62);
+
+  backdrop-filter: blur(24px);
+
+  -webkit-backdrop-filter:
+    blur(24px);
+}
+
+.dialogo-mercados::backdrop {
+  background:
+    rgba(0, 5, 12, 0.74);
+
+  backdrop-filter: blur(5px);
+}
+
+.cabecera-dialogo {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding: 3px 3px 12px;
+}
+
+.cabecera-dialogo small {
+  color: var(--cian);
+
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.cabecera-dialogo h2 {
+  margin: 3px 0 0;
+}
+
+.boton-cerrar {
+  width: 42px;
+  height: 42px;
+
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+
+  color: var(--texto-principal);
+
+  background:
+    rgba(255, 255, 255, 0.06);
+
+  font-size: 1.5rem;
+}
+
+.lista-mercados {
+  display: grid;
+
+  gap: 8px;
+
+  max-height: 64vh;
+
+  overflow-y: auto;
+}
+
+.opcion-mercado {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  width: 100%;
+  min-height: 60px;
+
+  padding: 10px 12px;
+
+  border: 1px solid var(--borde);
+  border-radius: 17px;
+
+  color: var(--texto-principal);
+
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  text-align: left;
+}
+
+.opcion-mercado.activo {
+  border-color:
+    rgba(80, 229, 164, 0.58);
+
+  background:
+    rgba(80, 229, 164, 0.11);
+}
+
+.codigo-mercado {
+  display: grid;
+  place-items: center;
+
+  min-width: 48px;
+  height: 42px;
+
+  border-radius: 13px;
+
+  color: var(--cian);
+
+  background:
+    rgba(88, 217, 255, 0.1);
+
+  font-weight: 950;
+}
+
+.opcion-mercado div {
+  min-width: 0;
+}
+
+.opcion-mercado strong {
+  display: block;
+
+  font-size: 0.87rem;
+}
+
+.opcion-mercado small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: var(--texto-secundario);
+}
+
+
+/* =========================================================
+   25. CÁPSULA FLOTANTE
+========================================================= */
+
+.capsula-senal {
+  position: fixed;
+
+  z-index: 9999;
+
+  left: 50%;
+  top: 42%;
+
+  display: grid;
+  place-items: center;
+  align-content: center;
+
+  gap: 7px;
+
+  width: min(82vw, 340px);
+  min-height: 175px;
+
+  padding: 24px 22px;
+
+  overflow: hidden;
+
+  border: 1px solid
+    rgba(255, 255, 255, 0.22);
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 48, 70, 0.94),
+      rgba(4, 15, 27, 0.9)
+    );
+
+  box-shadow:
+    0 28px 90px
+      rgba(0, 0, 0, 0.56),
+    inset 0 1px
+      rgba(255, 255, 255, 0.18);
+
+  backdrop-filter:
+    blur(24px)
+    saturate(135%);
+
+  -webkit-backdrop-filter:
+    blur(24px)
+    saturate(135%);
+
+  opacity: 0;
+  pointer-events: none;
+
+  transform:
+    translate(-50%, -44%)
+    scale(0.72);
+
+  transition:
+    opacity 0.28s ease,
+    transform
+      0.36s
+      cubic-bezier(
+        0.2,
+        0.9,
+        0.25,
+        1.2
+      ),
+    border-color
+      0.25s ease;
+}
+
+.capsula-senal.visible {
+  opacity: 1;
+
+  transform:
+    translate(-50%, -50%)
+    scale(1);
+}
+
+.capsula-senal.ocultando {
+  opacity: 0;
+
+  transform:
+    translate(-50%, -56%)
+    scale(0.9);
+}
+
+.capsula-senal p,
+.capsula-senal strong,
+.capsula-senal small {
+  position: relative;
+  z-index: 2;
+
+  margin: 0;
+
+  text-align: center;
+}
+
+.capsula-senal p {
+  color:
+    rgba(255, 255, 255, 0.76);
+
+  font-size: 0.7rem;
+  font-weight: 950;
+
+  letter-spacing: 0.16em;
+}
+
+.capsula-senal strong {
+  max-width: 100%;
+
+  font-size:
+    clamp(
+      2rem,
+      11vw,
+      4.2rem
+    );
+
+  line-height: 0.95;
+
+  font-weight: 1000;
+
+  letter-spacing: -0.055em;
+
+  overflow-wrap: anywhere;
+}
+
+.capsula-senal small {
+  color:
+    rgba(255, 255, 255, 0.72);
+
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.brillo-capsula {
+  position: absolute;
+
+  inset: -35%;
+
+  opacity: 0.28;
+
+  filter: blur(26px);
+
+  animation:
+    pulso-capsula
+    1.45s
+    ease-in-out
+    infinite;
+}
+
+.capsula-senal.prepare {
+  border-color:
+    rgba(255, 209, 102, 0.76);
+}
+
+.capsula-senal.prepare strong {
+  color: var(--amarillo);
+}
+
+.capsula-senal.prepare
+.brillo-capsula {
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 209, 102, 0.9),
+      transparent 62%
+    );
+}
+
+.capsula-senal.confirmed,
+.capsula-senal.success {
+  border-color:
+    rgba(80, 229, 164, 0.76);
+}
+
+.capsula-senal.confirmed strong,
+.capsula-senal.success strong {
+  color: var(--verde);
+}
+
+.capsula-senal.confirmed
+.brillo-capsula,
+.capsula-senal.success
+.brillo-capsula {
+  background:
+    radial-gradient(
+      circle,
+      rgba(80, 229, 164, 0.92),
+      transparent 62%
+    );
+}
+
+.capsula-senal.failed,
+.capsula-senal.cancelled {
+  border-color:
+    rgba(255, 102, 128, 0.76);
+}
+
+.capsula-senal.failed strong,
+.capsula-senal.cancelled strong {
+  color: var(--rojo);
+}
+
+.capsula-senal.failed
+.brillo-capsula,
+.capsula-senal.cancelled
+.brillo-capsula {
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 102, 128, 0.9),
+      transparent 62%
+    );
+}
+
+@keyframes pulso-capsula {
+  50% {
+    opacity: 0.52;
+    transform: scale(1.08);
+  }
+}
+
+body.capsula-abierta::before {
+  content: "";
+
+  position: fixed;
+  z-index: 9998;
+
+  inset: 0;
+
+  background:
+    rgba(0, 7, 14, 0.36);
+
+  backdrop-filter: blur(2px);
+
+  -webkit-backdrop-filter:
+    blur(2px);
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   26. TABLETAS Y PANTALLAS MEDIANAS
+========================================================= */
+
+@media (max-width: 850px) {
+
+  .panel-estados {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-configuracion {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-indicadores {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-estadisticas {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+  }
+
+  .rejilla-voz {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+}
+
+
+/* =========================================================
+   27. TELÉFONOS
+========================================================= */
+
+@media (max-width: 540px) {
+
+  .aplicacion {
+    width: min(100% - 10px, 1050px);
+
+    padding-top: 7px;
+  }
+
+  .glass-card {
+    margin-bottom: 10px;
+
+    padding: 15px;
+
+    border-radius: 21px;
+  }
+
+  .encabezado {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr)
+      auto;
+
+    gap: 10px;
+  }
+
+  .logotipo {
+    width: 48px;
+    height: 48px;
+
+    border-radius: 16px;
+  }
+
+  .subtitulo {
+    display: none;
+  }
+
+  .panel-estados {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .estado-item {
+    padding: 9px;
+  }
+
+  .grupo-botones {
+    gap: 8px;
+  }
+
+  .boton-glass {
+    min-height: 48px;
+
+    padding: 0 11px;
+
+    font-size: 0.79rem;
+  }
+
+  .rejilla-configuracion {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-monitoreo {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr);
+  }
+
+  .boton-cancelar {
+    grid-column: 1 / -1;
+
+    width: 100%;
+  }
+
+  .rejilla-datos-mercado {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-datos-mercado
+  article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .rejilla-indicadores {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .resumen-fibonacci {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
+  }
+
+  .nivel-fibonacci {
+    width: 84px;
+    height: 84px;
+  }
+
+  .rejilla-fibonacci {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-fibonacci
+  article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .niveles-fibonacci {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+  }
+
+  .rejilla-puntaje {
+    grid-template-columns: 1fr;
+  }
+
+  .rejilla-estadisticas {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .rejilla-estadisticas
+  article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .rejilla-voz {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-senal {
+    padding: 16px;
+  }
+
+  .valor-prediccion {
+    font-size:
+      clamp(
+        1.9rem,
+        12vw,
+        3.5rem
+      );
+  }
+
+  .capsula-senal {
+    width: min(86vw, 315px);
+
+    min-height: 154px;
+
+    padding: 20px 18px;
+  }
+
+}
+
+
+/* =========================================================
+   28. TELÉFONOS MUY PEQUEÑOS
+========================================================= */
+
+@media (max-width: 355px) {
+
+  .logotipo {
+    display: none;
+  }
+
+  .encabezado {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
+  }
+
+  .panel-estados,
+  .rejilla-indicadores,
+  .rejilla-estadisticas,
+  .rejilla-datos-mercado,
+  .rejilla-fibonacci {
+    grid-template-columns: 1fr;
+  }
+
+  .rejilla-datos-mercado
+  article:last-child,
+  .rejilla-fibonacci
+  article:last-child,
+  .rejilla-estadisticas
+  article:last-child {
+    grid-column: auto;
+  }
+
+  .grupo-botones {
+    flex-direction: column;
+  }
+
+}
