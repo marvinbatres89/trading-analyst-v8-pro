@@ -3,14 +3,13 @@
 TRADING ANALYST V8 PRO
 Archivo: js/app.js
 
-Responsabilidad:
-- Coordinar todos los módulos.
-- Recibir ticks de Deriv.
-- Actualizar la interfaz.
-- Encender y apagar el motor.
-- Ejecutar indicadores y predicciones.
-- Administrar Monitoring, Prepare, Confirmed y Result.
-- Validar las señales observadas.
+VERSIÓN:
+- Configuración bloqueada mientras el motor trabaja.
+- Anuncio del mercado y estrategia al encender.
+- Estado interno CANDIDATE.
+- PREPARE más estable.
+- CONFIRMED con ventana de ejecución.
+- Monitoreo continuo.
 =========================================================
 */
 
@@ -36,26 +35,28 @@ import {
 
 
 /* =====================================================
-1. CONFIGURACIÓN
+1. CONFIGURACIÓN GENERAL
 ===================================================== */
 
 const CONFIGURACION = Object.freeze({
-  version: "8.0.0",
+  version: "8.1.0",
 
   maximoPrecios: 1000,
   maximoDigitos: 1000,
   maximoHistorial: 20,
-  maximoRegistro: 60,
+  maximoRegistro: 70,
 
   intervaloAnalisisMilisegundos: 350,
 
-  tiempoCapsulaPrepare: 4500,
-  tiempoCapsulaConfirmada: 4000,
-  tiempoCapsulaResultado: 4500,
-
-  ciclosAntesDeVozMonitoreo: 1
+  tiempoCapsulaPrepare: 5000,
+  tiempoCapsulaConfirmada: 4500,
+  tiempoCapsulaResultado: 4500
 });
 
+
+/* =====================================================
+2. MERCADOS
+===================================================== */
 
 const MERCADOS = Object.freeze([
   {
@@ -111,8 +112,74 @@ const MERCADOS = Object.freeze([
 ]);
 
 
+const ESTRATEGIAS_VOZ = Object.freeze({
+  rise_fall: "Sube y Baja",
+  even_odd: "Par e Impar",
+  over_under: "Más de cuatro y Menos de cinco",
+  match: "Coincidencia"
+});
+
+
 /* =====================================================
-2. ELEMENTOS DE LA INTERFAZ
+3. NOMBRES PARA LA VOZ
+===================================================== */
+
+function obtenerMercadoParaVoz(
+  simbolo
+) {
+  const nombres = {
+    "1HZ10V":
+      "Volatilidad 10 de un segundo",
+
+    "1HZ25V":
+      "Volatilidad 25 de un segundo",
+
+    "1HZ50V":
+      "Volatilidad 50 de un segundo",
+
+    "1HZ75V":
+      "Volatilidad 75 de un segundo",
+
+    "1HZ100V":
+      "Volatilidad 100 de un segundo",
+
+    "R_10":
+      "Volatilidad 10 Index",
+
+    "R_25":
+      "Volatilidad 25 Index",
+
+    "R_50":
+      "Volatilidad 50 Index",
+
+    "R_75":
+      "Volatilidad 75 Index",
+
+    "R_100":
+      "Volatilidad 100 Index"
+  };
+
+  return (
+    nombres[simbolo] ||
+    "Mercado seleccionado"
+  );
+}
+
+
+function obtenerEstrategiaParaVoz(
+  estrategia
+) {
+  return (
+    ESTRATEGIAS_VOZ[
+      estrategia
+    ] ||
+    "estrategia seleccionada"
+  );
+}
+
+
+/* =====================================================
+4. ELEMENTOS DE LA INTERFAZ
 ===================================================== */
 
 function obtenerElemento(
@@ -140,19 +207,27 @@ const interfaz = {
     obtenerElemento("estadoConexion"),
 
   textoEstadoConexion:
-    obtenerElemento("textoEstadoConexion"),
+    obtenerElemento(
+      "textoEstadoConexion"
+    ),
 
   estadoMotor:
     obtenerElemento("estadoMotor"),
 
   textoEstadoMotor:
-    obtenerElemento("textoEstadoMotor"),
+    obtenerElemento(
+      "textoEstadoMotor"
+    ),
 
   estadoMonitoreo:
-    obtenerElemento("estadoMonitoreo"),
+    obtenerElemento(
+      "estadoMonitoreo"
+    ),
 
   textoEstadoMonitoreo:
-    obtenerElemento("textoEstadoMonitoreo"),
+    obtenerElemento(
+      "textoEstadoMonitoreo"
+    ),
 
   estadoMemoria:
     obtenerElemento("estadoMemoria"),
@@ -161,34 +236,50 @@ const interfaz = {
     obtenerElemento("botonConectar"),
 
   botonDesconectar:
-    obtenerElemento("botonDesconectar"),
+    obtenerElemento(
+      "botonDesconectar"
+    ),
 
   botonEncenderMotor:
-    obtenerElemento("botonEncenderMotor"),
+    obtenerElemento(
+      "botonEncenderMotor"
+    ),
 
   botonPrediccion:
-    obtenerElemento("botonPrediccion"),
+    obtenerElemento(
+      "botonPrediccion"
+    ),
 
   mensajeControl:
     obtenerElemento("mensajeControl"),
 
   botonAbrirMercados:
-    obtenerElemento("botonAbrirMercados"),
+    obtenerElemento(
+      "botonAbrirMercados"
+    ),
 
   mercadoSeleccionado:
-    obtenerElemento("mercadoSeleccionado"),
+    obtenerElemento(
+      "mercadoSeleccionado"
+    ),
 
   simboloSeleccionado:
-    obtenerElemento("simboloSeleccionado"),
+    obtenerElemento(
+      "simboloSeleccionado"
+    ),
 
   selectorEstrategia:
-    obtenerElemento("selectorEstrategia"),
+    obtenerElemento(
+      "selectorEstrategia"
+    ),
 
   selectorModo:
     obtenerElemento("selectorModo"),
 
   selectorHorizonte:
-    obtenerElemento("selectorHorizonte"),
+    obtenerElemento(
+      "selectorHorizonte"
+    ),
 
   panelMonitoreo:
     obtenerElemento("panelMonitoreo"),
@@ -197,10 +288,14 @@ const interfaz = {
     obtenerElemento("tituloMonitoreo"),
 
   detalleMonitoreo:
-    obtenerElemento("detalleMonitoreo"),
+    obtenerElemento(
+      "detalleMonitoreo"
+    ),
 
   botonCancelarMonitoreo:
-    obtenerElemento("botonCancelarMonitoreo"),
+    obtenerElemento(
+      "botonCancelarMonitoreo"
+    ),
 
   nombreMercado:
     obtenerElemento("nombreMercado"),
@@ -218,13 +313,17 @@ const interfaz = {
     obtenerElemento("ultimoDigito"),
 
   horaActualizacion:
-    obtenerElemento("horaActualizacion"),
+    obtenerElemento(
+      "horaActualizacion"
+    ),
 
   cantidadDigitos:
     obtenerElemento("cantidadDigitos"),
 
   listaUltimosDigitos:
-    obtenerElemento("listaUltimosDigitos"),
+    obtenerElemento(
+      "listaUltimosDigitos"
+    ),
 
   textoProgreso:
     obtenerElemento("textoProgreso"),
@@ -239,7 +338,9 @@ const interfaz = {
     obtenerElemento("tendencia"),
 
   detalleTendencia:
-    obtenerElemento("detalleTendencia"),
+    obtenerElemento(
+      "detalleTendencia"
+    ),
 
   rsi:
     obtenerElemento("rsi"),
@@ -251,52 +352,78 @@ const interfaz = {
     obtenerElemento("momentum"),
 
   detalleMomentum:
-    obtenerElemento("detalleMomentum"),
+    obtenerElemento(
+      "detalleMomentum"
+    ),
 
   volatilidad:
     obtenerElemento("volatilidad"),
 
   detalleVolatilidad:
-    obtenerElemento("detalleVolatilidad"),
+    obtenerElemento(
+      "detalleVolatilidad"
+    ),
 
   estadoFibonacci:
-    obtenerElemento("estadoFibonacci"),
+    obtenerElemento(
+      "estadoFibonacci"
+    ),
 
   detalleFibonacci:
-    obtenerElemento("detalleFibonacci"),
+    obtenerElemento(
+      "detalleFibonacci"
+    ),
 
   nivelFibonacciCercano:
-    obtenerElemento("nivelFibonacciCercano"),
+    obtenerElemento(
+      "nivelFibonacciCercano"
+    ),
 
   maximoFibonacci:
-    obtenerElemento("maximoFibonacci"),
+    obtenerElemento(
+      "maximoFibonacci"
+    ),
 
   minimoFibonacci:
-    obtenerElemento("minimoFibonacci"),
+    obtenerElemento(
+      "minimoFibonacci"
+    ),
 
   distanciaFibonacci:
-    obtenerElemento("distanciaFibonacci"),
+    obtenerElemento(
+      "distanciaFibonacci"
+    ),
 
   nivelesFibonacci:
-    obtenerElemento("nivelesFibonacci"),
+    obtenerElemento(
+      "nivelesFibonacci"
+    ),
 
   panelSenal:
     obtenerElemento("panelSenal"),
 
   estadoPrediccion:
-    obtenerElemento("estadoPrediccion"),
+    obtenerElemento(
+      "estadoPrediccion"
+    ),
 
   tituloPrediccion:
-    obtenerElemento("tituloPrediccion"),
+    obtenerElemento(
+      "tituloPrediccion"
+    ),
 
   valorPrediccion:
-    obtenerElemento("valorPrediccion"),
+    obtenerElemento(
+      "valorPrediccion"
+    ),
 
   puntajeSenal:
     obtenerElemento("puntajeSenal"),
 
   precisionObservada:
-    obtenerElemento("precisionObservada"),
+    obtenerElemento(
+      "precisionObservada"
+    ),
 
   barraPuntaje:
     obtenerElemento("barraPuntaje"),
@@ -305,31 +432,49 @@ const interfaz = {
     obtenerElemento("listaMotivos"),
 
   mensajeOperacion:
-    obtenerElemento("mensajeOperacion"),
+    obtenerElemento(
+      "mensajeOperacion"
+    ),
 
   cuentaRegresiva:
-    obtenerElemento("cuentaRegresiva"),
+    obtenerElemento(
+      "cuentaRegresiva"
+    ),
 
   botonNuevaSenal:
-    obtenerElemento("botonNuevaSenal"),
+    obtenerElemento(
+      "botonNuevaSenal"
+    ),
 
   estadisticaIntentos:
-    obtenerElemento("estadisticaIntentos"),
+    obtenerElemento(
+      "estadisticaIntentos"
+    ),
 
   estadisticaAciertos:
-    obtenerElemento("estadisticaAciertos"),
+    obtenerElemento(
+      "estadisticaAciertos"
+    ),
 
   estadisticaFallos:
-    obtenerElemento("estadisticaFallos"),
+    obtenerElemento(
+      "estadisticaFallos"
+    ),
 
   estadisticaPrecision:
-    obtenerElemento("estadisticaPrecision"),
+    obtenerElemento(
+      "estadisticaPrecision"
+    ),
 
   estadisticaRacha:
-    obtenerElemento("estadisticaRacha"),
+    obtenerElemento(
+      "estadisticaRacha"
+    ),
 
   botonReiniciarEstadisticas:
-    obtenerElemento("botonReiniciarEstadisticas"),
+    obtenerElemento(
+      "botonReiniciarEstadisticas"
+    ),
 
   botonVoz:
     obtenerElemento("botonVoz"),
@@ -359,22 +504,34 @@ const interfaz = {
     obtenerElemento("botonProbarVoz"),
 
   historialSenales:
-    obtenerElemento("historialSenales"),
+    obtenerElemento(
+      "historialSenales"
+    ),
 
   botonLimpiarHistorial:
-    obtenerElemento("botonLimpiarHistorial"),
+    obtenerElemento(
+      "botonLimpiarHistorial"
+    ),
 
   registroActividad:
-    obtenerElemento("registroActividad"),
+    obtenerElemento(
+      "registroActividad"
+    ),
 
   botonLimpiarRegistro:
-    obtenerElemento("botonLimpiarRegistro"),
+    obtenerElemento(
+      "botonLimpiarRegistro"
+    ),
 
   dialogoMercados:
-    obtenerElemento("dialogoMercados"),
+    obtenerElemento(
+      "dialogoMercados"
+    ),
 
   botonCerrarMercados:
-    obtenerElemento("botonCerrarMercados"),
+    obtenerElemento(
+      "botonCerrarMercados"
+    ),
 
   listaMercados:
     obtenerElemento("listaMercados"),
@@ -394,7 +551,7 @@ const interfaz = {
 
 
 /* =====================================================
-3. ESTADO GENERAL
+5. ESTADO GENERAL
 ===================================================== */
 
 const estado = {
@@ -402,7 +559,9 @@ const estado = {
   motorEncendido: false,
 
   simbolo: "1HZ100V",
-  mercado: "Volatility 100 (1s) Index",
+
+  mercado:
+    "Volatility 100 (1s) Index",
 
   estrategia: "rise_fall",
   modo: "fast",
@@ -415,7 +574,10 @@ const estado = {
 
   ultimoPrecio: null,
   precioAnterior: null,
-  ultimoPrecioFormateado: "--",
+
+  ultimoPrecioFormateado:
+    "--",
+
   ultimoPipSize: null,
 
   resumenTecnico: null,
@@ -423,7 +585,7 @@ const estado = {
 
   ultimoAnalisisEn: 0,
 
-  señalActiva: null,
+  senalActiva: null,
 
   historial: [],
 
@@ -437,11 +599,13 @@ const estado = {
 
 
 let temporizadorCapsula = null;
-let temporizadorCuentaRegresiva = null;
+
+let temporizadorCuentaRegresiva =
+  null;
 
 
 /* =====================================================
-4. UTILIDADES
+6. UTILIDADES
 ===================================================== */
 
 function obtenerHora(
@@ -583,7 +747,43 @@ function registrarActividad(
 
 
 /* =====================================================
-5. CONEXIÓN Y MOTOR
+7. BLOQUEAR CONFIGURACIÓN
+===================================================== */
+
+function bloquearConfiguracion(
+  bloquear
+) {
+  interfaz.botonAbrirMercados.disabled =
+    bloquear;
+
+  interfaz.selectorEstrategia.disabled =
+    bloquear;
+
+  interfaz.selectorModo.disabled =
+    bloquear;
+
+  interfaz.selectorHorizonte.disabled =
+    bloquear;
+
+  interfaz.botonAbrirMercados.setAttribute(
+    "aria-disabled",
+    String(bloquear)
+  );
+
+  interfaz.botonAbrirMercados.style.opacity =
+    bloquear
+      ? "0.55"
+      : "1";
+
+  interfaz.botonAbrirMercados.style.cursor =
+    bloquear
+      ? "not-allowed"
+      : "pointer";
+}
+
+
+/* =====================================================
+8. CONEXIÓN
 ===================================================== */
 
 function actualizarEstadoConexion(
@@ -617,6 +817,33 @@ function actualizarEstadoConexion(
 }
 
 
+function conectar() {
+  const mercado =
+    obtenerMercado(
+      estado.simbolo
+    );
+
+  registrarActividad(
+    `Conectando con ${mercado.nombre}.`
+  );
+
+  derivAPI.conectar(
+    estado.simbolo
+  );
+}
+
+
+function desconectar() {
+  apagarMotor(false);
+
+  derivAPI.desconectar();
+}
+
+
+/* =====================================================
+9. MOTOR
+===================================================== */
+
 function actualizarEstadoMotor() {
   interfaz.estadoMotor.className =
     estado.motorEncendido
@@ -641,28 +868,10 @@ function actualizarEstadoMotor() {
   interfaz.botonPrediccion.disabled =
     !estado.conectado ||
     !estado.motorEncendido;
-}
 
-
-function conectar() {
-  const mercado =
-    obtenerMercado(
-      estado.simbolo
-    );
-
-  registrarActividad(
-    `Conectando con ${mercado.nombre}.`
+  bloquearConfiguracion(
+    estado.motorEncendido
   );
-
-  derivAPI.conectar(
-    estado.simbolo
-  );
-}
-
-
-function desconectar() {
-  apagarMotor(false);
-  derivAPI.desconectar();
 }
 
 
@@ -681,25 +890,53 @@ function encenderMotor() {
   actualizarEstadoMotor();
 
   monitorOportunidades.establecerContexto({
-    simbolo: estado.simbolo,
-    mercado: estado.mercado,
-    estrategia: estado.estrategia,
-    modo: estado.modo,
-    horizonte: estado.horizonte
+    simbolo:
+      estado.simbolo,
+
+    mercado:
+      estado.mercado,
+
+    estrategia:
+      estado.estrategia,
+
+    modo:
+      estado.modo,
+
+    horizonte:
+      estado.horizonte
   });
 
   monitorOportunidades.iniciar();
 
   interfaz.mensajeControl.textContent =
-    "Motor encendido. El mercado está siendo analizado automáticamente.";
+    "Motor encendido. Buscando una entrada estable.";
 
   registrarActividad(
     "Motor de análisis encendido.",
     "exito"
   );
 
-  asistenteVoz.anunciarMotor(
-    true
+  const mercadoVoz =
+    obtenerMercadoParaVoz(
+      estado.simbolo
+    );
+
+  const estrategiaVoz =
+    obtenerEstrategiaParaVoz(
+      estado.estrategia
+    );
+
+  asistenteVoz.hablarSecuencia(
+    [
+      "Motor de análisis encendido.",
+      `${mercadoVoz}.`,
+      `Estrategia ${estrategiaVoz}.`,
+      "Buscando entrada."
+    ],
+    {
+      reemplazar: true,
+      pausa: 380
+    }
   );
 }
 
@@ -708,7 +945,7 @@ function apagarMotor(
   anunciar = true
 ) {
   estado.motorEncendido = false;
-  estado.señalActiva = null;
+  estado.senalActiva = null;
 
   detenerCuentaRegresiva();
 
@@ -720,7 +957,7 @@ function apagarMotor(
 
   interfaz.mensajeControl.textContent =
     estado.conectado
-      ? "La herramienta está conectada. Encienda el motor para analizar."
+      ? "La herramienta está conectada. Configure el mercado y encienda el motor."
       : "Conecte la herramienta y después encienda el motor.";
 
   if (anunciar) {
@@ -743,7 +980,7 @@ function alternarMotor() {
 
 
 /* =====================================================
-6. MERCADOS
+10. SELECTOR DE MERCADOS
 ===================================================== */
 
 function construirListaMercados() {
@@ -805,6 +1042,17 @@ function construirListaMercados() {
 
 
 function abrirMercados() {
+  if (
+    estado.motorEncendido
+  ) {
+    registrarActividad(
+      "Apague el motor antes de cambiar el mercado.",
+      "advertencia"
+    );
+
+    return;
+  }
+
   construirListaMercados();
 
   if (
@@ -842,6 +1090,17 @@ function seleccionarMercado(
   cerrarMercados();
 
   if (
+    estado.motorEncendido
+  ) {
+    registrarActividad(
+      "Apague el motor antes de cambiar el mercado.",
+      "advertencia"
+    );
+
+    return;
+  }
+
+  if (
     !mercado ||
     mercado.simbolo ===
       estado.simbolo
@@ -867,8 +1126,11 @@ function seleccionarMercado(
   limpiarDatosMercado();
 
   monitorOportunidades.establecerContexto({
-    simbolo: estado.simbolo,
-    mercado: estado.mercado
+    simbolo:
+      estado.simbolo,
+
+    mercado:
+      estado.mercado
   });
 
   registrarActividad(
@@ -884,7 +1146,7 @@ function seleccionarMercado(
 
 
 /* =====================================================
-7. LIMPIEZA DE DATOS
+11. LIMPIAR DATOS
 ===================================================== */
 
 function limpiarDatosMercado() {
@@ -895,12 +1157,13 @@ function limpiarDatosMercado() {
 
   estado.ultimoPrecio = null;
   estado.precioAnterior = null;
+
   estado.ultimoPrecioFormateado =
     "--";
 
   estado.resumenTecnico = null;
   estado.ultimaPrediccion = null;
-  estado.señalActiva = null;
+  estado.senalActiva = null;
 
   interfaz.precioActual.textContent =
     "--";
@@ -933,7 +1196,7 @@ function limpiarDatosMercado() {
 
 
 /* =====================================================
-8. RECEPCIÓN DE TICKS
+12. RECEPCIÓN DE TICKS
 ===================================================== */
 
 function procesarTick(
@@ -1032,10 +1295,9 @@ function procesarTick(
   mostrarUltimosDigitos();
   actualizarMemoria();
 
-  evaluarSeñalActiva(
+  evaluarSenalActiva(
     precio,
-    digito,
-    tick
+    digito
   );
 
   if (
@@ -1083,7 +1345,7 @@ function mostrarMovimientoPrecio(
 
 
 /* =====================================================
-9. MEMORIA Y DÍGITOS
+13. MEMORIA Y ÚLTIMOS DÍGITOS
 ===================================================== */
 
 function actualizarMemoria() {
@@ -1171,12 +1433,13 @@ function mostrarUltimosDigitos() {
   );
 
   interfaz.listaUltimosDigitos.scrollLeft =
-    interfaz.listaUltimosDigitos.scrollWidth;
+    interfaz.listaUltimosDigitos
+      .scrollWidth;
 }
 
 
 /* =====================================================
-10. ANÁLISIS
+14. ANÁLISIS
 ===================================================== */
 
 function analizarMercado(
@@ -1188,12 +1451,12 @@ function analizarMercado(
     return null;
   }
 
-  const ahora =
+  const momentoActual =
     Date.now();
 
   if (
     !forzar &&
-    ahora -
+    momentoActual -
       estado.ultimoAnalisisEn <
       CONFIGURACION
         .intervaloAnalisisMilisegundos
@@ -1202,7 +1465,7 @@ function analizarMercado(
   }
 
   estado.ultimoAnalisisEn =
-    ahora;
+    momentoActual;
 
   estado.resumenTecnico =
     crearResumenTecnico({
@@ -1245,7 +1508,7 @@ function analizarMercado(
 
 
 /* =====================================================
-11. INDICADORES
+15. INDICADORES
 ===================================================== */
 
 function limpiarIndicadores() {
@@ -1325,7 +1588,7 @@ function mostrarIndicadores(
 
 
 /* =====================================================
-12. FIBONACCI
+16. FIBONACCI
 ===================================================== */
 
 function limpiarFibonacci() {
@@ -1367,6 +1630,7 @@ function mostrarFibonacci(
     !fibonacci.disponible
   ) {
     limpiarFibonacci();
+
     return;
   }
 
@@ -1414,10 +1678,12 @@ function mostrarFibonacci(
 
         elemento.classList.toggle(
           "activo",
-          fibonacci.nivelCercano &&
-          nivel ===
-            fibonacci.nivelCercano
-              .porcentaje
+          Boolean(
+            fibonacci.nivelCercano &&
+            nivel ===
+              fibonacci.nivelCercano
+                .porcentaje
+          )
         );
       }
     );
@@ -1425,7 +1691,7 @@ function mostrarFibonacci(
 
 
 /* =====================================================
-13. PANEL DE PREDICCIÓN
+17. PANEL DE PREDICCIÓN
 ===================================================== */
 
 function mostrarEstadoInicialSenal() {
@@ -1461,17 +1727,21 @@ function mostrarEstadoInicialSenal() {
 function mostrarPuntajeEnMonitoreo(
   prediccion
 ) {
+  if (!prediccion) {
+    return;
+  }
+
+  const estadoMonitor =
+    monitorOportunidades
+      .obtenerEstado()
+      .estado;
+
   if (
-    !prediccion ||
     [
       ESTADOS_MONITOR.CONFIRMED,
       ESTADOS_MONITOR.EXECUTING,
       ESTADOS_MONITOR.RESULT
-    ].includes(
-      monitorOportunidades
-        .obtenerEstado()
-        .estado
-    )
+    ].includes(estadoMonitor)
   ) {
     return;
   }
@@ -1493,7 +1763,7 @@ function mostrarPuntajeEnMonitoreo(
 
 
 /* =====================================================
-14. MONITOR DE OPORTUNIDADES
+18. ESTADOS DEL MONITOR
 ===================================================== */
 
 function manejarEstadoMonitor(
@@ -1527,6 +1797,7 @@ function manejarEstadoMonitor(
       "MONITORING INACTIVE";
   }
 
+
   if (
     estadoMonitor ===
     ESTADOS_MONITOR.MONITORING
@@ -1540,8 +1811,29 @@ function manejarEstadoMonitor(
     );
 
     interfaz.tituloMonitoreo.textContent =
-      "MONITORING MARKET";
+      "SEARCHING ENTRY";
   }
+
+
+  if (
+    estadoMonitor ===
+    ESTADOS_MONITOR.CANDIDATE
+  ) {
+    interfaz.estadoMonitoreo.classList.add(
+      "monitoreo-activo"
+    );
+
+    interfaz.panelMonitoreo.classList.add(
+      "monitoring"
+    );
+
+    interfaz.tituloMonitoreo.textContent =
+      "VALIDATING ENTRY";
+
+    interfaz.detalleMonitoreo.textContent =
+      "Se detectó una posible oportunidad. Verificando estabilidad antes de mostrar la prealerta.";
+  }
+
 
   if (
     estadoMonitor ===
@@ -1559,6 +1851,7 @@ function manejarEstadoMonitor(
       "PREPARE";
   }
 
+
   if (
     estadoMonitor ===
     ESTADOS_MONITOR.CONFIRMED
@@ -1575,11 +1868,48 @@ function manejarEstadoMonitor(
       "CONFIRMED";
   }
 
-  interfaz.detalleMonitoreo.textContent =
-    datos.mensaje ||
-    "Analizando el mercado.";
+
+  if (
+    estadoMonitor ===
+    ESTADOS_MONITOR.CANCELLED
+  ) {
+    interfaz.estadoMonitoreo.classList.add(
+      "prepare"
+    );
+
+    interfaz.panelMonitoreo.classList.add(
+      "prepare"
+    );
+
+    interfaz.tituloMonitoreo.textContent =
+      "OPPORTUNITY CANCELLED";
+  }
+
+
+  if (
+    estadoMonitor !==
+    ESTADOS_MONITOR.CANDIDATE
+  ) {
+    interfaz.detalleMonitoreo.textContent =
+      datos.mensaje ||
+      "Analizando el mercado.";
+  }
+
+
+  const puedeCancelar =
+    estadoMonitor ===
+      ESTADOS_MONITOR.PREPARE ||
+    estadoMonitor ===
+      ESTADOS_MONITOR.CONFIRMED;
+
+  interfaz.botonCancelarMonitoreo.hidden =
+    !puedeCancelar;
 }
 
+
+/* =====================================================
+19. PREPARE
+===================================================== */
 
 function manejarPrepare({
   resultado
@@ -1591,13 +1921,17 @@ function manejarPrepare({
 
   mostrarCapsula({
     tipo: "prepare",
-    estado: "PREPARE",
+
+    estadoTexto: "PREPARE",
+
     valor:
       obtenerValorVisual(
         resultado
       ),
+
     detalle:
       "Prepare el bot y espere confirmación.",
+
     duracion:
       CONFIGURACION
         .tiempoCapsulaPrepare
@@ -1609,17 +1943,25 @@ function manejarPrepare({
 }
 
 
+/* =====================================================
+20. CONFIRMED
+===================================================== */
+
 function manejarConfirmacion({
   resultado
 }) {
-  estado.señalActiva = {
+  estado.senalActiva = {
     resultado,
+
     precioReferencia:
       estado.ultimoPrecio,
+
     tickReferencia:
       estado.ticksRecibidos,
+
     creadaEn:
       Date.now(),
+
     evaluada: false
   };
 
@@ -1630,13 +1972,17 @@ function manejarConfirmacion({
 
   mostrarCapsula({
     tipo: "confirmed",
-    estado: "EXECUTE NOW",
+
+    estadoTexto: "EXECUTE NOW",
+
     valor:
       obtenerValorVisual(
         resultado
       ),
+
     detalle:
       "Señal revalidada con el mercado actual.",
+
     duracion:
       CONFIGURACION
         .tiempoCapsulaConfirmada
@@ -1645,6 +1991,9 @@ function manejarConfirmacion({
   asistenteVoz.anunciarConfirmacion(
     resultado
   );
+
+  monitorOportunidades
+    .marcarEjecutando();
 
   iniciarCuentaRegresiva(
     resultado
@@ -1656,27 +2005,35 @@ function manejarConfirmacion({
 }
 
 
+/* =====================================================
+21. CANCELACIÓN
+===================================================== */
+
 function manejarCancelacion({
   motivo,
   resultado
 }) {
-  estado.señalActiva = null;
+  estado.senalActiva = null;
 
   detenerCuentaRegresiva();
 
   mostrarCapsula({
     tipo: "cancelled",
-    estado: "CANCELLED",
+
+    estadoTexto: "CANCELLED",
+
     valor:
       resultado
         ? obtenerValorVisual(
             resultado
           )
         : "WAIT",
+
     detalle:
       motivo ||
       "La oportunidad perdió confirmación.",
-    duracion: 3000
+
+    duracion: 3200
   });
 
   asistenteVoz.anunciarCancelacion(
@@ -1684,6 +2041,10 @@ function manejarCancelacion({
   );
 }
 
+
+/* =====================================================
+22. RESULTADO
+===================================================== */
 
 function manejarResultado({
   acierto,
@@ -1706,7 +2067,7 @@ function manejarResultado({
         ? "success"
         : "failed",
 
-    estado:
+    estadoTexto:
       acierto
         ? "SUCCESS"
         : "FAILED",
@@ -1730,12 +2091,12 @@ function manejarResultado({
     acierto
   );
 
-  estado.señalActiva = null;
+  estado.senalActiva = null;
 }
 
 
 /* =====================================================
-15. MOSTRAR RESULTADOS
+23. MOSTRAR RESULTADOS
 ===================================================== */
 
 function obtenerValorVisual(
@@ -1812,6 +2173,7 @@ function mostrarMotivos(
 
   const mensajes = [
     ...(resultado.razones || []),
+
     ...(resultado.advertencias || [])
       .map(
         (texto) =>
@@ -1880,29 +2242,30 @@ function mostrarResultadoFinal(
 
 
 /* =====================================================
-16. VALIDACIÓN DE SEÑALES
+24. EVALUAR SEÑAL
 ===================================================== */
 
-function evaluarSeñalActiva(
+function evaluarSenalActiva(
   precio,
   digito
 ) {
-  const señal =
-    estado.señalActiva;
+  const senal =
+    estado.senalActiva;
 
   if (
-    !señal ||
-    señal.evaluada
+    !senal ||
+    senal.evaluada
   ) {
     return;
   }
 
   const resultado =
-    señal.resultado;
+    senal.resultado;
 
   const ticksTranscurridos =
     estado.ticksRecibidos -
-    señal.tickReferencia;
+    senal.tickReferencia;
+
 
   if (
     resultado.estrategia ===
@@ -1929,6 +2292,7 @@ function evaluarSeñalActiva(
     return;
   }
 
+
   if (
     resultado.estrategia ===
       "over_under" &&
@@ -1954,6 +2318,7 @@ function evaluarSeñalActiva(
     return;
   }
 
+
   if (
     resultado.estrategia ===
       "match" &&
@@ -1971,12 +2336,14 @@ function evaluarSeñalActiva(
       {
         digitoResultado:
           digito,
+
         digitoEsperado
       }
     );
 
     return;
   }
+
 
   if (
     resultado.estrategia ===
@@ -1987,7 +2354,7 @@ function evaluarSeñalActiva(
 
     const tiempoTranscurrido =
       Date.now() -
-      señal.creadaEn;
+      senal.creadaEn;
 
     if (
       tiempoTranscurrido >=
@@ -1997,15 +2364,15 @@ function evaluarSeñalActiva(
         resultado.direccion ===
           "RISE"
           ? precio >
-            señal.precioReferencia
+            senal.precioReferencia
           : precio <
-            señal.precioReferencia;
+            senal.precioReferencia;
 
       finalizarEvaluacion(
         acierto,
         {
           precioInicial:
-            señal.precioReferencia,
+            senal.precioReferencia,
 
           precioFinal:
             precio
@@ -2021,23 +2388,24 @@ function finalizarEvaluacion(
   datos = {}
 ) {
   if (
-    !estado.señalActiva
+    !estado.senalActiva
   ) {
     return;
   }
 
-  estado.señalActiva.evaluada =
+  estado.senalActiva.evaluada =
     true;
 
-  monitorOportunidades.registrarResultado({
-    acierto,
-    datos
-  });
+  monitorOportunidades
+    .registrarResultado({
+      acierto,
+      datos
+    });
 }
 
 
 /* =====================================================
-17. CUENTA REGRESIVA
+25. CUENTA REGRESIVA
 ===================================================== */
 
 function obtenerSegundosHorizonte() {
@@ -2082,9 +2450,19 @@ function iniciarCuentaRegresiva(
             : "0";
 
         if (
-          [5, 3, 2, 1].includes(
-            segundos
-          )
+          [
+            10,
+            9,
+            8,
+            7,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1,
+            0
+          ].includes(segundos)
         ) {
           asistenteVoz.anunciarConteo(
             segundos
@@ -2117,12 +2495,12 @@ function detenerCuentaRegresiva() {
 
 
 /* =====================================================
-18. CÁPSULA
+26. CÁPSULA
 ===================================================== */
 
 function mostrarCapsula({
   tipo,
-  estado: textoEstado,
+  estadoTexto,
   valor,
   detalle,
   duracion
@@ -2133,7 +2511,7 @@ function mostrarCapsula({
     `capsula-senal ${tipo}`;
 
   interfaz.estadoCapsula.textContent =
-    textoEstado;
+    estadoTexto;
 
   interfaz.valorCapsula.textContent =
     valor;
@@ -2167,7 +2545,9 @@ function mostrarCapsula({
 
 
 function ocultarCapsula() {
-  if (temporizadorCapsula) {
+  if (
+    temporizadorCapsula
+  ) {
     clearTimeout(
       temporizadorCapsula
     );
@@ -2191,7 +2571,7 @@ function ocultarCapsula() {
 
 
 /* =====================================================
-19. HISTORIAL Y ESTADÍSTICAS
+27. HISTORIAL
 ===================================================== */
 
 function agregarHistorial(
@@ -2199,8 +2579,10 @@ function agregarHistorial(
 ) {
   estado.historial.unshift({
     resultado,
+
     mercado:
       estado.mercado,
+
     hora:
       obtenerHora()
   });
@@ -2261,6 +2643,10 @@ function actualizarHistorial() {
 }
 
 
+/* =====================================================
+28. ESTADÍSTICAS
+===================================================== */
+
 function actualizarEstadisticas(
   acierto
 ) {
@@ -2315,7 +2701,7 @@ function mostrarEstadisticas() {
 
 
 /* =====================================================
-20. VOZ
+29. VOZ
 ===================================================== */
 
 async function cargarSelectorVoces() {
@@ -2400,14 +2786,20 @@ function actualizarBotonVoz() {
 
 
 /* =====================================================
-21. CAMBIOS DE CONFIGURACIÓN
+30. CONFIGURACIÓN
 ===================================================== */
 
 function cambiarEstrategia() {
+  if (
+    estado.motorEncendido
+  ) {
+    return;
+  }
+
   estado.estrategia =
     interfaz.selectorEstrategia.value;
 
-  estado.señalActiva = null;
+  estado.senalActiva = null;
 
   monitorOportunidades.establecerContexto({
     estrategia:
@@ -2423,11 +2815,18 @@ function cambiarEstrategia() {
 
 
 function cambiarModo() {
+  if (
+    estado.motorEncendido
+  ) {
+    return;
+  }
+
   estado.modo =
     interfaz.selectorModo.value;
 
   monitorOportunidades.establecerContexto({
-    modo: estado.modo
+    modo:
+      estado.modo
   });
 
   registrarActividad(
@@ -2437,6 +2836,12 @@ function cambiarModo() {
 
 
 function cambiarHorizonte() {
+  if (
+    estado.motorEncendido
+  ) {
+    return;
+  }
+
   estado.horizonte =
     interfaz.selectorHorizonte.value;
 
@@ -2452,7 +2857,7 @@ function cambiarHorizonte() {
 
 
 /* =====================================================
-22. EVENTOS DE DERIV
+31. EVENTOS DE DERIV
 ===================================================== */
 
 function configurarEventosDeriv() {
@@ -2470,6 +2875,7 @@ function configurarEventosDeriv() {
 
       registrarActividad(
         `Estado de conexión: ${datos.texto}.`,
+
         datos.estado === "live"
           ? "exito"
           : "normal"
@@ -2477,10 +2883,12 @@ function configurarEventosDeriv() {
     }
   );
 
+
   derivAPI.al(
     "tick",
     procesarTick
   );
+
 
   derivAPI.al(
     "error",
@@ -2491,6 +2899,7 @@ function configurarEventosDeriv() {
       );
     }
   );
+
 
   derivAPI.al(
     "diagnostico",
@@ -2505,7 +2914,7 @@ function configurarEventosDeriv() {
 
 
 /* =====================================================
-23. EVENTOS DEL MONITOR
+32. EVENTOS DEL MONITOR
 ===================================================== */
 
 function configurarEventosMonitor() {
@@ -2514,25 +2923,30 @@ function configurarEventosMonitor() {
     manejarEstadoMonitor
   );
 
+
   monitorOportunidades.al(
     "prepare",
     manejarPrepare
   );
+
 
   monitorOportunidades.al(
     "confirmado",
     manejarConfirmacion
   );
 
+
   monitorOportunidades.al(
     "cancelado",
     manejarCancelacion
   );
 
+
   monitorOportunidades.al(
     "resultado",
     manejarResultado
   );
+
 
   monitorOportunidades.al(
     "diagnostico",
@@ -2547,7 +2961,7 @@ function configurarEventosMonitor() {
 
 
 /* =====================================================
-24. EVENTOS DE INTERFAZ
+33. EVENTOS DE INTERFAZ
 ===================================================== */
 
 function configurarEventosInterfaz() {
@@ -2556,15 +2970,18 @@ function configurarEventosInterfaz() {
     conectar
   );
 
+
   interfaz.botonDesconectar.addEventListener(
     "click",
     desconectar
   );
 
+
   interfaz.botonEncenderMotor.addEventListener(
     "click",
     alternarMotor
   );
+
 
   interfaz.botonPrediccion.addEventListener(
     "click",
@@ -2577,47 +2994,56 @@ function configurarEventosInterfaz() {
     }
   );
 
+
   interfaz.botonAbrirMercados.addEventListener(
     "click",
     abrirMercados
   );
+
 
   interfaz.botonCerrarMercados.addEventListener(
     "click",
     cerrarMercados
   );
 
+
   interfaz.selectorEstrategia.addEventListener(
     "change",
     cambiarEstrategia
   );
+
 
   interfaz.selectorModo.addEventListener(
     "change",
     cambiarModo
   );
 
+
   interfaz.selectorHorizonte.addEventListener(
     "change",
     cambiarHorizonte
   );
 
+
   interfaz.botonCancelarMonitoreo.addEventListener(
     "click",
     () => {
       monitorOportunidades.cancelarOportunidad(
-        "Monitoreo cancelado manualmente."
+        "Oportunidad cancelada manualmente."
       );
     }
   );
+
 
   interfaz.botonVoz.addEventListener(
     "click",
     () => {
       asistenteVoz.alternar();
+
       actualizarBotonVoz();
     }
   );
+
 
   interfaz.selectorVoz.addEventListener(
     "change",
@@ -2627,6 +3053,7 @@ function configurarEventosInterfaz() {
       );
     }
   );
+
 
   interfaz.velocidadVoz.addEventListener(
     "input",
@@ -2645,6 +3072,7 @@ function configurarEventosInterfaz() {
     }
   );
 
+
   interfaz.tonoVoz.addEventListener(
     "input",
     () => {
@@ -2661,6 +3089,7 @@ function configurarEventosInterfaz() {
         valor.toFixed(1);
     }
   );
+
 
   interfaz.volumenVoz.addEventListener(
     "input",
@@ -2681,6 +3110,7 @@ function configurarEventosInterfaz() {
     }
   );
 
+
   interfaz.botonProbarVoz.addEventListener(
     "click",
     () => {
@@ -2688,13 +3118,16 @@ function configurarEventosInterfaz() {
     }
   );
 
+
   interfaz.botonLimpiarHistorial.addEventListener(
     "click",
     () => {
       estado.historial = [];
+
       actualizarHistorial();
     }
   );
+
 
   interfaz.botonLimpiarRegistro.addEventListener(
     "click",
@@ -2707,6 +3140,7 @@ function configurarEventosInterfaz() {
       );
     }
   );
+
 
   interfaz.botonReiniciarEstadisticas.addEventListener(
     "click",
@@ -2726,18 +3160,52 @@ function configurarEventosInterfaz() {
     }
   );
 
+
   interfaz.botonNuevaSenal.addEventListener(
     "click",
     () => {
       mostrarEstadoInicialSenal();
-      monitorOportunidades.iniciar();
+
+      if (
+        estado.motorEncendido
+      ) {
+        monitorOportunidades.iniciar();
+      }
     }
   );
 }
 
 
 /* =====================================================
-25. INICIAR APLICACIÓN
+34. SERVICE WORKER
+===================================================== */
+
+async function registrarServiceWorker() {
+  if (
+    !("serviceWorker" in navigator)
+  ) {
+    return;
+  }
+
+  try {
+    await navigator.serviceWorker.register(
+      "./service-worker.js"
+    );
+
+    registrarActividad(
+      "Service Worker registrado."
+    );
+  } catch (error) {
+    registrarActividad(
+      "No fue posible registrar el Service Worker.",
+      "advertencia"
+    );
+  }
+}
+
+
+/* =====================================================
+35. INICIAR APLICACIÓN
 ===================================================== */
 
 async function iniciarAplicacion() {
@@ -2795,19 +3263,21 @@ async function iniciarAplicacion() {
       estado.horizonte
   });
 
+  await registrarServiceWorker();
+
   registrarActividad(
     `Trading Analyst V${CONFIGURACION.version} iniciado.`,
     "exito"
   );
 
   registrarActividad(
-    "Seleccione el mercado y presione CONNECT."
+    "Seleccione el mercado, la estrategia y presione CONNECT."
   );
 }
 
 
 /* =====================================================
-26. CIERRE
+36. CIERRE
 ===================================================== */
 
 window.addEventListener(
