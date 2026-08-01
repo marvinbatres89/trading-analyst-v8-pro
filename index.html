@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#06131f"
+  >
+
+  <meta
+    name="description"
+    content="Trading Analyst V8 Pro, herramienta educativa para análisis de índices sintéticos en tiempo real."
+  >
+
+  <title>Trading Analyst V8 Pro</title>
+
+  <link
+    rel="manifest"
+    href="manifest.webmanifest"
+  >
+
+  <link
+    rel="icon"
+    href="assets/icon.svg"
+    type="image/svg+xml"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/style.css"
+  >
+</head>
+
+<body>
+
+  <!-- Fondo decorativo -->
+  <div
+    class="fondo-cuadricula"
+    aria-hidden="true"
+  ></div>
+
+
+  <!-- APLICACIÓN -->
+  <main class="aplicacion">
+
+
+    <!-- ==================================================
+         ENCABEZADO Y MARCA
+    =================================================== -->
+    <header class="encabezado glass-card">
+
+      <div
+        class="logotipo"
+        aria-hidden="true"
+      >
+        TA
+      </div>
+
+
+      <div class="marca">
+
+        <p class="texto-superior">
+          TRADING ANALYST
+        </p>
+
+        <h1>
+          V8 <span>Pro</span>
+        </h1>
+
+        <p class="subtitulo">
+          Intelligent Synthetic Market Analysis
+        </p>
+
+      </div>
+
+
+      <button
+        id="botonVoz"
+        class="boton-icono voz-activa"
+        type="button"
+        aria-label="Activar o silenciar el asistente de voz"
+        aria-pressed="true"
+      >
+        🔊
+      </button>
+
+    </header>
+
+
+    <!-- ==================================================
+         ESTADOS PRINCIPALES
+    =================================================== -->
+    <section
+      class="panel-estados glass-card"
+      aria-label="Estado de la herramienta"
+    >
+
+      <article
+        id="estadoConexion"
+        class="estado-item offline"
+      >
+
+        <span class="punto-estado"></span>
+
+        <div>
+
+          <small>
+            CONNECTION
+          </small>
+
+          <strong id="textoEstadoConexion">
+            OFFLINE
+          </strong>
+
+        </div>
+
+      </article>
+
+
+      <article
+        id="estadoMotor"
+        class="estado-item motor-apagado"
+      >
+
+        <span class="punto-estado"></span>
+
+        <div>
+
+          <small>
+            ENGINE
+          </small>
+
+          <strong id="textoEstadoMotor">
+            OFF
+          </strong>
+
+        </div>
+
+      </article>
+
+
+      <article
+        id="estadoMonitoreo"
+        class="estado-item monitoreo-inactivo"
+      >
+
+        <span class="punto-estado"></span>
+
+        <div>
+
+          <small>
+            SIGNAL SYSTEM
+          </small>
+
+          <strong id="textoEstadoMonitoreo">
+            INACTIVE
+          </strong>
+
+        </div>
+
+      </article>
+
+
+      <article class="estado-item memoria">
+
+        <span class="punto-estado"></span>
+
+        <div>
+
+          <small>
+            TICK MEMORY
+          </small>
+
+          <strong id="estadoMemoria">
+            0 / 1000
+          </strong>
+
+        </div>
+
+      </article>
+
+    </section>
+
+
+    <!-- ==================================================
+         CONTROLES PRINCIPALES
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          01
+        </span>
+
+        <div>
+
+          <p>
+            CONTROL
+          </p>
+
+          <h2>
+            Control principal
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="grupo-botones conexion">
+
+        <button
+          id="botonConectar"
+          class="boton-glass boton-conectar"
+          type="button"
+        >
+          <span>●</span>
+          CONNECT
+        </button>
+
+
+        <button
+          id="botonDesconectar"
+          class="boton-glass boton-desconectar"
+          type="button"
+          disabled
+        >
+          DISCONNECT
+        </button>
+
+      </div>
+
+
+      <div class="grupo-botones motor">
+
+        <button
+          id="botonEncenderMotor"
+          class="boton-glass boton-motor"
+          type="button"
+          disabled
+        >
+          <span>⚡</span>
+          START ENGINE
+        </button>
+
+
+        <button
+          id="botonPrediccion"
+          class="boton-glass boton-prediccion"
+          type="button"
+          disabled
+        >
+          <span>✦</span>
+          PREDICTION
+        </button>
+
+      </div>
+
+
+      <p
+        id="mensajeControl"
+        class="texto-ayuda"
+      >
+        Conecte la herramienta y después encienda el motor.
+      </p>
+
+    </section>
+
+
+    <!-- ==================================================
+         CONFIGURACIÓN DEL MERCADO
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          02
+        </span>
+
+        <div>
+
+          <p>
+            MARKET
+          </p>
+
+          <h2>
+            Configuración del mercado
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="rejilla-configuracion">
+
+
+        <!-- Selector personalizado de mercado -->
+        <div class="campo-control">
+
+          <small>
+            VOLATILITY INDEX
+          </small>
+
+          <button
+            id="botonAbrirMercados"
+            class="selector-personalizado"
+            type="button"
+            aria-haspopup="dialog"
+          >
+
+            <span>
+
+              <strong id="mercadoSeleccionado">
+                Volatility 100 (1s) Index
+              </strong>
+
+              <em id="simboloSeleccionado">
+                1HZ100V
+              </em>
+
+            </span>
+
+            <i aria-hidden="true">
+              ⌄
+            </i>
+
+          </button>
+
+        </div>
+
+
+        <!-- Estrategia -->
+        <label class="campo-control">
+
+          <small>
+            STRATEGY
+          </small>
+
+          <select
+            id="selectorEstrategia"
+            aria-label="Seleccionar estrategia"
+          >
+
+            <option
+              value="rise_fall"
+              selected
+            >
+              Rise / Fall
+            </option>
+
+            <option value="even_odd">
+              Even / Odd
+            </option>
+
+            <option value="over_under">
+              Over / Under
+            </option>
+
+            <option value="match">
+              Match
+            </option>
+
+          </select>
+
+        </label>
+
+
+        <!-- Modo -->
+        <label class="campo-control">
+
+          <small>
+            ANALYSIS MODE
+          </small>
+
+          <select
+            id="selectorModo"
+            aria-label="Seleccionar modo de análisis"
+          >
+
+            <option
+              value="fast"
+              selected
+            >
+              Fast
+            </option>
+
+            <option value="complete">
+              Complete
+            </option>
+
+          </select>
+
+        </label>
+
+
+        <!-- Horizonte -->
+        <label class="campo-control">
+
+          <small>
+            PREDICTION HORIZON
+          </small>
+
+          <select
+            id="selectorHorizonte"
+            aria-label="Seleccionar horizonte de predicción"
+          >
+
+            <option
+              value="10s"
+              selected
+            >
+              10 Seconds
+            </option>
+
+            <option value="1m">
+              1 Minute
+            </option>
+
+            <option value="5m">
+              5 Minutes
+            </option>
+
+          </select>
+
+        </label>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         MONITOREO Y PREALERTA
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          03
+        </span>
+
+        <div>
+
+          <p>
+            SIGNAL INTELLIGENCE
+          </p>
+
+          <h2>
+            Monitoreo de oportunidad
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="panelMonitoreo"
+        class="panel-monitoreo inactive"
+        aria-live="polite"
+      >
+
+        <div class="animacion-radar">
+
+          <span class="radar-circulo uno"></span>
+          <span class="radar-circulo dos"></span>
+          <span class="radar-centro"></span>
+
+        </div>
+
+
+        <div class="texto-monitoreo">
+
+          <small>
+            CURRENT STATUS
+          </small>
+
+          <strong id="tituloMonitoreo">
+            MONITORING INACTIVE
+          </strong>
+
+          <p id="detalleMonitoreo">
+            Encienda el motor para comenzar a buscar oportunidades.
+          </p>
+
+        </div>
+
+
+        <button
+          id="botonCancelarMonitoreo"
+          class="boton-cancelar"
+          type="button"
+          hidden
+        >
+          CANCEL
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         MERCADO EN VIVO
+    =================================================== -->
+    <section class="glass-card tarjeta-mercado">
+
+      <div class="cabecera-tarjeta">
+
+        <div>
+
+          <p class="texto-superior">
+            LIVE MARKET
+          </p>
+
+          <h2 id="nombreMercado">
+            Volatility 100 (1s) Index
+          </h2>
+
+        </div>
+
+
+        <span
+          id="estadoDatos"
+          class="insignia-datos"
+        >
+          NO DATA
+        </span>
+
+      </div>
+
+
+      <div
+        id="precioActual"
+        class="precio-actual"
+        aria-live="polite"
+      >
+        --
+      </div>
+
+
+      <div class="rejilla-datos-mercado">
+
+        <article>
+
+          <small>
+            RECEIVED TICKS
+          </small>
+
+          <strong id="contadorTicks">
+            0
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            LAST DIGIT
+          </small>
+
+          <strong id="ultimoDigito">
+            --
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            LAST UPDATE
+          </small>
+
+          <strong id="horaActualizacion">
+            --
+          </strong>
+
+        </article>
+
+      </div>
+
+
+      <div class="contenedor-digitos">
+
+        <div class="cabecera-digitos">
+
+          <span>
+            LAST 20 DIGITS
+          </span>
+
+          <strong id="cantidadDigitos">
+            0
+          </strong>
+
+        </div>
+
+
+        <div
+          id="listaUltimosDigitos"
+          class="lista-digitos"
+        >
+
+          <span class="mensaje-vacio">
+            Esperando datos
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div class="contenedor-progreso">
+
+        <div class="texto-progreso">
+
+          <span id="textoProgreso">
+            WAITING CONNECTION
+          </span>
+
+          <strong id="numeroProgreso">
+            0 / 1000
+          </strong>
+
+        </div>
+
+
+        <div class="barra-progreso">
+
+          <span id="barraMemoria"></span>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         INDICADORES TÉCNICOS
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          04
+        </span>
+
+        <div>
+
+          <p>
+            TECHNICAL ANALYSIS
+          </p>
+
+          <h2>
+            Indicadores técnicos
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="rejilla-indicadores">
+
+        <article class="indicador">
+
+          <small>
+            TREND
+          </small>
+
+          <strong id="tendencia">
+            --
+          </strong>
+
+          <em id="detalleTendencia">
+            Esperando datos
+          </em>
+
+        </article>
+
+
+        <article class="indicador">
+
+          <small>
+            RSI
+          </small>
+
+          <strong id="rsi">
+            --
+          </strong>
+
+          <em id="detalleRsi">
+            Esperando datos
+          </em>
+
+        </article>
+
+
+        <article class="indicador">
+
+          <small>
+            MOMENTUM
+          </small>
+
+          <strong id="momentum">
+            --
+          </strong>
+
+          <em id="detalleMomentum">
+            Esperando datos
+          </em>
+
+        </article>
+
+
+        <article class="indicador">
+
+          <small>
+            VOLATILITY
+          </small>
+
+          <strong id="volatilidad">
+            --
+          </strong>
+
+          <em id="detalleVolatilidad">
+            Esperando datos
+          </em>
+
+        </article>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         FIBONACCI
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          05
+        </span>
+
+        <div>
+
+          <p>
+            FIBONACCI ANALYSIS
+          </p>
+
+          <h2>
+            Zonas de reacción
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="resumen-fibonacci">
+
+        <div>
+
+          <small>
+            STATUS
+          </small>
+
+          <strong id="estadoFibonacci">
+            NO DATA
+          </strong>
+
+          <p id="detalleFibonacci">
+            Reuniendo precios para calcular los niveles.
+          </p>
+
+        </div>
+
+
+        <div class="nivel-fibonacci">
+
+          <strong id="nivelFibonacciCercano">
+            --
+          </strong>
+
+          <small>
+            NEAREST LEVEL
+          </small>
+
+        </div>
+
+      </div>
+
+
+      <div class="rejilla-fibonacci">
+
+        <article>
+
+          <small>
+            RECENT HIGH
+          </small>
+
+          <strong id="maximoFibonacci">
+            --
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            RECENT LOW
+          </small>
+
+          <strong id="minimoFibonacci">
+            --
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            LEVEL DISTANCE
+          </small>
+
+          <strong id="distanciaFibonacci">
+            --
+          </strong>
+
+        </article>
+
+      </div>
+
+
+      <div
+        id="nivelesFibonacci"
+        class="niveles-fibonacci"
+      >
+
+        <span data-nivel="23.6">
+          23.6%
+        </span>
+
+        <span data-nivel="38.2">
+          38.2%
+        </span>
+
+        <span data-nivel="50">
+          50%
+        </span>
+
+        <span data-nivel="61.8">
+          61.8%
+        </span>
+
+        <span data-nivel="78.6">
+          78.6%
+        </span>
+
+      </div>
+
+
+      <p class="texto-ayuda">
+        Fibonacci será utilizado como confirmación y nunca como señal independiente.
+      </p>
+
+    </section>
+
+
+    <!-- ==================================================
+         FLUJO DE SEÑAL
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          06
+        </span>
+
+        <div>
+
+          <p>
+            SIGNAL FLOW
+          </p>
+
+          <h2>
+            Estado de la predicción
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="panelSenal"
+        class="panel-senal monitoring"
+        aria-live="assertive"
+      >
+
+        <p
+          id="estadoPrediccion"
+          class="estado-prediccion"
+        >
+          MONITORING
+        </p>
+
+
+        <h3 id="tituloPrediccion">
+          Esperando oportunidad
+        </h3>
+
+
+        <div
+          id="valorPrediccion"
+          class="valor-prediccion"
+        >
+          --
+        </div>
+
+
+        <div class="rejilla-puntaje">
+
+          <article>
+
+            <small>
+              SIGNAL SCORE
+            </small>
+
+            <strong id="puntajeSenal">
+              --
+            </strong>
+
+          </article>
+
+
+          <article>
+
+            <small>
+              OBSERVED ACCURACY
+            </small>
+
+            <strong id="precisionObservada">
+              0 / 20 TESTS
+            </strong>
+
+          </article>
+
+        </div>
+
+
+        <div class="barra-puntaje">
+
+          <span id="barraPuntaje"></span>
+
+        </div>
+
+
+        <div class="motivos-senal">
+
+          <h4>
+            SIGNAL ANALYSIS
+          </h4>
+
+          <ul id="listaMotivos">
+
+            <li>
+              El motor todavía no está encendido.
+            </li>
+
+          </ul>
+
+        </div>
+
+
+        <p
+          id="mensajeOperacion"
+          class="mensaje-operacion"
+        >
+          Sin señal activa.
+        </p>
+
+
+        <div
+          id="cuentaRegresiva"
+          class="cuenta-regresiva"
+        >
+          --
+        </div>
+
+
+        <button
+          id="botonNuevaSenal"
+          class="boton-glass boton-nueva-senal"
+          type="button"
+          hidden
+        >
+          NEW SIGNAL
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         ESTADÍSTICAS
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          07
+        </span>
+
+        <div>
+
+          <p>
+            VALIDATION
+          </p>
+
+          <h2>
+            Resultados observados
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="rejilla-estadisticas">
+
+        <article>
+
+          <small>
+            TESTED SIGNALS
+          </small>
+
+          <strong id="estadisticaIntentos">
+            0
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            SUCCESSFUL
+          </small>
+
+          <strong id="estadisticaAciertos">
+            0
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            FAILED
+          </small>
+
+          <strong id="estadisticaFallos">
+            0
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            REAL ACCURACY
+          </small>
+
+          <strong id="estadisticaPrecision">
+            NO DATA
+          </strong>
+
+        </article>
+
+
+        <article>
+
+          <small>
+            CURRENT STREAK
+          </small>
+
+          <strong id="estadisticaRacha">
+            0
+          </strong>
+
+        </article>
+
+      </div>
+
+
+      <button
+        id="botonReiniciarEstadisticas"
+        class="boton-texto"
+        type="button"
+      >
+        RESET STATISTICS
+      </button>
+
+    </section>
+
+
+    <!-- ==================================================
+         ASISTENTE DE VOZ
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="titulo-seccion">
+
+        <span>
+          08
+        </span>
+
+        <div>
+
+          <p>
+            VOICE ASSISTANT
+          </p>
+
+          <h2>
+            Configuración de voz
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <div class="rejilla-voz">
+
+        <label>
+
+          <small>
+            VOICE / ACCENT
+          </small>
+
+          <select
+            id="selectorVoz"
+            aria-label="Seleccionar voz"
+          >
+            <option>
+              Cargando voces...
+            </option>
+          </select>
+
+        </label>
+
+
+        <label>
+
+          <small>
+            SPEED
+          </small>
+
+          <input
+            id="velocidadVoz"
+            type="range"
+            min="0.70"
+            max="1.20"
+            step="0.05"
+            value="0.90"
+          >
+
+          <output id="valorVelocidad">
+            0.90x
+          </output>
+
+        </label>
+
+
+        <label>
+
+          <small>
+            PITCH
+          </small>
+
+          <input
+            id="tonoVoz"
+            type="range"
+            min="0.80"
+            max="1.20"
+            step="0.10"
+            value="1"
+          >
+
+          <output id="valorTono">
+            1.0
+          </output>
+
+        </label>
+
+
+        <label>
+
+          <small>
+            VOLUME
+          </small>
+
+          <input
+            id="volumenVoz"
+            type="range"
+            min="0"
+            max="1"
+            step="0.10"
+            value="1"
+          >
+
+          <output id="valorVolumen">
+            100%
+          </output>
+
+        </label>
+
+      </div>
+
+
+      <button
+        id="botonProbarVoz"
+        class="boton-glass boton-probar-voz"
+        type="button"
+      >
+        TEST VOICE
+      </button>
+
+    </section>
+
+
+    <!-- ==================================================
+         HISTORIAL
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="cabecera-tarjeta">
+
+        <div>
+
+          <p class="texto-superior">
+            HISTORY
+          </p>
+
+          <h2>
+            Historial de señales
+          </h2>
+
+        </div>
+
+
+        <button
+          id="botonLimpiarHistorial"
+          class="boton-texto"
+          type="button"
+        >
+          CLEAR
+        </button>
+
+      </div>
+
+
+      <div
+        id="historialSenales"
+        class="historial"
+      >
+
+        <p class="mensaje-vacio">
+          Todavía no se han generado señales.
+        </p>
+
+      </div>
+
+    </section>
+
+
+    <!-- ==================================================
+         DIAGNÓSTICO
+    =================================================== -->
+    <section class="glass-card">
+
+      <div class="cabecera-tarjeta">
+
+        <div>
+
+          <p class="texto-superior">
+            SYSTEM
+          </p>
+
+          <h2>
+            Diagnóstico
+          </h2>
+
+        </div>
+
+
+        <button
+          id="botonLimpiarRegistro"
+          class="boton-texto"
+          type="button"
+        >
+          CLEAR
+        </button>
+
+      </div>
+
+
+      <div
+        id="registroActividad"
+        class="registro-actividad"
+        aria-live="polite"
+      ></div>
+
+    </section>
+
+
+    <!-- ==================================================
+         PIE
+    =================================================== -->
+    <footer class="pie-pagina">
+
+      <p>
+        Trading Analyst V8 Pro es una herramienta educativa de análisis.
+      </p>
+
+      <p>
+        El Signal Score no representa una garantía de resultado.
+      </p>
+
+      <p>
+        Realice las pruebas únicamente en cuenta demo.
+      </p>
+
+    </footer>
+
+  </main>
+
+
+  <!-- ==================================================
+       MODAL DE MERCADOS
+  =================================================== -->
+  <dialog
+    id="dialogoMercados"
+    class="dialogo-mercados"
+  >
+
+    <div class="cabecera-dialogo">
+
+      <div>
+
+        <small>
+          SELECT
+        </small>
+
+        <h2>
+          Volatility Index
+        </h2>
+
+      </div>
+
+
+      <button
+        id="botonCerrarMercados"
+        class="boton-cerrar"
+        type="button"
+        aria-label="Cerrar selector de mercados"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <div
+      id="listaMercados"
+      class="lista-mercados"
+    ></div>
+
+  </dialog>
+
+
+  <!-- ==================================================
+       CÁPSULA FLOTANTE
+  =================================================== -->
+  <div
+    id="capsulaSenal"
+    class="capsula-senal"
+    aria-live="assertive"
+    aria-hidden="true"
+  >
+
+    <div class="brillo-capsula"></div>
+
+
+    <p id="estadoCapsula">
+      PREPARE
+    </p>
+
+
+    <strong id="valorCapsula">
+      --
+    </strong>
+
+
+    <small id="detalleCapsula">
+      Esperando confirmación
+    </small>
+
+  </div>
+
+
+  <!-- ==================================================
+       ARCHIVO PRINCIPAL
+  =================================================== -->
+  <script
+    type="module"
+    src="js/app.js"
+  ></script>
+
+</body>
+</html>
