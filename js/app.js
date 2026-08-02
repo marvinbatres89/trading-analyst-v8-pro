@@ -1,19 +1,27 @@
 /*
 =========================================================
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 Archivo: js/app.js
 
-VERSIÓN:
-- Configuración bloqueada mientras el motor trabaja.
-- Anuncio del mercado y estrategia al encender.
-- Estado interno CANDIDATE.
-- PREPARE más estable.
-- CONFIRMED con ventana de ejecución.
-- Monitoreo continuo.
+Responsabilidad:
+- Conectar todos los módulos.
+- Recibir ticks de Deriv.
+- Ejecutar indicadores y predicciones.
+- Administrar:
+  SEARCHING
+  VALIDATING
+  PREPARE
+  REVALIDATING
+  EXECUTE NOW
+  RESULT
+- Activar el botón PREDICTION.
+- Separar estadísticas por mercado y estrategia.
 =========================================================
 */
 
-import { derivAPI } from "./deriv-api.js";
+import {
+  derivAPI
+} from "./deriv-api.js";
 
 import {
   crearResumenTecnico
@@ -21,7 +29,8 @@ import {
 
 import {
   generarPrediccion,
-  clasificarPuntaje
+  clasificarPuntaje,
+  crearTextoOperacion
 } from "./prediction.js";
 
 import {
@@ -35,21 +44,26 @@ import {
 
 
 /* =====================================================
-1. CONFIGURACIÓN GENERAL
+1. CONFIGURACIÓN
 ===================================================== */
 
 const CONFIGURACION = Object.freeze({
-  version: "8.1.0",
+  version: "9.0.0-MR",
 
   maximoPrecios: 1000,
   maximoDigitos: 1000,
-  maximoHistorial: 20,
-  maximoRegistro: 70,
+
+  maximoHistorial: 30,
+  maximoRegistro: 80,
 
   intervaloAnalisisMilisegundos: 350,
 
+  minimoTicksBotonPrediccion: 12,
+
+  tiempoCapsulaManual: 4500,
   tiempoCapsulaPrepare: 5000,
-  tiempoCapsulaConfirmada: 4500,
+  tiempoCapsulaRevalidacion: 3500,
+  tiempoCapsulaConfirmada: 5000,
   tiempoCapsulaResultado: 4500
 });
 
@@ -112,79 +126,13 @@ const MERCADOS = Object.freeze([
 ]);
 
 
-const ESTRATEGIAS_VOZ = Object.freeze({
-  rise_fall: "Sube y Baja",
-  even_odd: "Par e Impar",
-  over_under: "Más de cuatro y Menos de cinco",
-  match: "Coincidencia"
-});
-
-
 /* =====================================================
-3. NOMBRES PARA LA VOZ
-===================================================== */
-
-function obtenerMercadoParaVoz(
-  simbolo
-) {
-  const nombres = {
-    "1HZ10V":
-      "Volatilidad 10 de un segundo",
-
-    "1HZ25V":
-      "Volatilidad 25 de un segundo",
-
-    "1HZ50V":
-      "Volatilidad 50 de un segundo",
-
-    "1HZ75V":
-      "Volatilidad 75 de un segundo",
-
-    "1HZ100V":
-      "Volatilidad 100 de un segundo",
-
-    "R_10":
-      "Volatilidad 10 Index",
-
-    "R_25":
-      "Volatilidad 25 Index",
-
-    "R_50":
-      "Volatilidad 50 Index",
-
-    "R_75":
-      "Volatilidad 75 Index",
-
-    "R_100":
-      "Volatilidad 100 Index"
-  };
-
-  return (
-    nombres[simbolo] ||
-    "Mercado seleccionado"
-  );
-}
-
-
-function obtenerEstrategiaParaVoz(
-  estrategia
-) {
-  return (
-    ESTRATEGIAS_VOZ[
-      estrategia
-    ] ||
-    "estrategia seleccionada"
-  );
-}
-
-
-/* =====================================================
-4. ELEMENTOS DE LA INTERFAZ
+3. ELEMENTOS
 ===================================================== */
 
 function obtenerElemento(
   id,
-  obligatorio = true
+  obligatorio = false
 ) {
   const elemento =
     document.getElementById(id);
@@ -194,7 +142,7 @@ function obtenerElemento(
     obligatorio
   ) {
     console.warn(
-      `No se encontró el elemento: ${id}`
+      `No se encontró el elemento #${id}`
     );
   }
 
@@ -207,27 +155,19 @@ const interfaz = {
     obtenerElemento("estadoConexion"),
 
   textoEstadoConexion:
-    obtenerElemento(
-      "textoEstadoConexion"
-    ),
+    obtenerElemento("textoEstadoConexion"),
 
   estadoMotor:
     obtenerElemento("estadoMotor"),
 
   textoEstadoMotor:
-    obtenerElemento(
-      "textoEstadoMotor"
-    ),
+    obtenerElemento("textoEstadoMotor"),
 
   estadoMonitoreo:
-    obtenerElemento(
-      "estadoMonitoreo"
-    ),
+    obtenerElemento("estadoMonitoreo"),
 
   textoEstadoMonitoreo:
-    obtenerElemento(
-      "textoEstadoMonitoreo"
-    ),
+    obtenerElemento("textoEstadoMonitoreo"),
 
   estadoMemoria:
     obtenerElemento("estadoMemoria"),
@@ -236,50 +176,34 @@ const interfaz = {
     obtenerElemento("botonConectar"),
 
   botonDesconectar:
-    obtenerElemento(
-      "botonDesconectar"
-    ),
+    obtenerElemento("botonDesconectar"),
 
   botonEncenderMotor:
-    obtenerElemento(
-      "botonEncenderMotor"
-    ),
+    obtenerElemento("botonEncenderMotor"),
 
   botonPrediccion:
-    obtenerElemento(
-      "botonPrediccion"
-    ),
+    obtenerElemento("botonPrediccion"),
 
   mensajeControl:
     obtenerElemento("mensajeControl"),
 
   botonAbrirMercados:
-    obtenerElemento(
-      "botonAbrirMercados"
-    ),
+    obtenerElemento("botonAbrirMercados"),
 
   mercadoSeleccionado:
-    obtenerElemento(
-      "mercadoSeleccionado"
-    ),
+    obtenerElemento("mercadoSeleccionado"),
 
   simboloSeleccionado:
-    obtenerElemento(
-      "simboloSeleccionado"
-    ),
+    obtenerElemento("simboloSeleccionado"),
 
   selectorEstrategia:
-    obtenerElemento(
-      "selectorEstrategia"
-    ),
+    obtenerElemento("selectorEstrategia"),
 
   selectorModo:
     obtenerElemento("selectorModo"),
 
   selectorHorizonte:
-    obtenerElemento(
-      "selectorHorizonte"
-    ),
+    obtenerElemento("selectorHorizonte"),
 
   panelMonitoreo:
     obtenerElemento("panelMonitoreo"),
@@ -288,14 +212,10 @@ const interfaz = {
     obtenerElemento("tituloMonitoreo"),
 
   detalleMonitoreo:
-    obtenerElemento(
-      "detalleMonitoreo"
-    ),
+    obtenerElemento("detalleMonitoreo"),
 
   botonCancelarMonitoreo:
-    obtenerElemento(
-      "botonCancelarMonitoreo"
-    ),
+    obtenerElemento("botonCancelarMonitoreo"),
 
   nombreMercado:
     obtenerElemento("nombreMercado"),
@@ -313,17 +233,13 @@ const interfaz = {
     obtenerElemento("ultimoDigito"),
 
   horaActualizacion:
-    obtenerElemento(
-      "horaActualizacion"
-    ),
+    obtenerElemento("horaActualizacion"),
 
   cantidadDigitos:
     obtenerElemento("cantidadDigitos"),
 
   listaUltimosDigitos:
-    obtenerElemento(
-      "listaUltimosDigitos"
-    ),
+    obtenerElemento("listaUltimosDigitos"),
 
   textoProgreso:
     obtenerElemento("textoProgreso"),
@@ -338,9 +254,7 @@ const interfaz = {
     obtenerElemento("tendencia"),
 
   detalleTendencia:
-    obtenerElemento(
-      "detalleTendencia"
-    ),
+    obtenerElemento("detalleTendencia"),
 
   rsi:
     obtenerElemento("rsi"),
@@ -352,78 +266,52 @@ const interfaz = {
     obtenerElemento("momentum"),
 
   detalleMomentum:
-    obtenerElemento(
-      "detalleMomentum"
-    ),
+    obtenerElemento("detalleMomentum"),
 
   volatilidad:
     obtenerElemento("volatilidad"),
 
   detalleVolatilidad:
-    obtenerElemento(
-      "detalleVolatilidad"
-    ),
+    obtenerElemento("detalleVolatilidad"),
 
   estadoFibonacci:
-    obtenerElemento(
-      "estadoFibonacci"
-    ),
+    obtenerElemento("estadoFibonacci"),
 
   detalleFibonacci:
-    obtenerElemento(
-      "detalleFibonacci"
-    ),
+    obtenerElemento("detalleFibonacci"),
 
   nivelFibonacciCercano:
-    obtenerElemento(
-      "nivelFibonacciCercano"
-    ),
+    obtenerElemento("nivelFibonacciCercano"),
 
   maximoFibonacci:
-    obtenerElemento(
-      "maximoFibonacci"
-    ),
+    obtenerElemento("maximoFibonacci"),
 
   minimoFibonacci:
-    obtenerElemento(
-      "minimoFibonacci"
-    ),
+    obtenerElemento("minimoFibonacci"),
 
   distanciaFibonacci:
-    obtenerElemento(
-      "distanciaFibonacci"
-    ),
+    obtenerElemento("distanciaFibonacci"),
 
   nivelesFibonacci:
-    obtenerElemento(
-      "nivelesFibonacci"
-    ),
+    obtenerElemento("nivelesFibonacci"),
 
   panelSenal:
     obtenerElemento("panelSenal"),
 
   estadoPrediccion:
-    obtenerElemento(
-      "estadoPrediccion"
-    ),
+    obtenerElemento("estadoPrediccion"),
 
   tituloPrediccion:
-    obtenerElemento(
-      "tituloPrediccion"
-    ),
+    obtenerElemento("tituloPrediccion"),
 
   valorPrediccion:
-    obtenerElemento(
-      "valorPrediccion"
-    ),
+    obtenerElemento("valorPrediccion"),
 
   puntajeSenal:
     obtenerElemento("puntajeSenal"),
 
   precisionObservada:
-    obtenerElemento(
-      "precisionObservada"
-    ),
+    obtenerElemento("precisionObservada"),
 
   barraPuntaje:
     obtenerElemento("barraPuntaje"),
@@ -432,49 +320,31 @@ const interfaz = {
     obtenerElemento("listaMotivos"),
 
   mensajeOperacion:
-    obtenerElemento(
-      "mensajeOperacion"
-    ),
+    obtenerElemento("mensajeOperacion"),
 
   cuentaRegresiva:
-    obtenerElemento(
-      "cuentaRegresiva"
-    ),
+    obtenerElemento("cuentaRegresiva"),
 
   botonNuevaSenal:
-    obtenerElemento(
-      "botonNuevaSenal"
-    ),
+    obtenerElemento("botonNuevaSenal"),
 
   estadisticaIntentos:
-    obtenerElemento(
-      "estadisticaIntentos"
-    ),
+    obtenerElemento("estadisticaIntentos"),
 
   estadisticaAciertos:
-    obtenerElemento(
-      "estadisticaAciertos"
-    ),
+    obtenerElemento("estadisticaAciertos"),
 
   estadisticaFallos:
-    obtenerElemento(
-      "estadisticaFallos"
-    ),
+    obtenerElemento("estadisticaFallos"),
 
   estadisticaPrecision:
-    obtenerElemento(
-      "estadisticaPrecision"
-    ),
+    obtenerElemento("estadisticaPrecision"),
 
   estadisticaRacha:
-    obtenerElemento(
-      "estadisticaRacha"
-    ),
+    obtenerElemento("estadisticaRacha"),
 
   botonReiniciarEstadisticas:
-    obtenerElemento(
-      "botonReiniciarEstadisticas"
-    ),
+    obtenerElemento("botonReiniciarEstadisticas"),
 
   botonVoz:
     obtenerElemento("botonVoz"),
@@ -504,34 +374,22 @@ const interfaz = {
     obtenerElemento("botonProbarVoz"),
 
   historialSenales:
-    obtenerElemento(
-      "historialSenales"
-    ),
+    obtenerElemento("historialSenales"),
 
   botonLimpiarHistorial:
-    obtenerElemento(
-      "botonLimpiarHistorial"
-    ),
+    obtenerElemento("botonLimpiarHistorial"),
 
   registroActividad:
-    obtenerElemento(
-      "registroActividad"
-    ),
+    obtenerElemento("registroActividad"),
 
   botonLimpiarRegistro:
-    obtenerElemento(
-      "botonLimpiarRegistro"
-    ),
+    obtenerElemento("botonLimpiarRegistro"),
 
   dialogoMercados:
-    obtenerElemento(
-      "dialogoMercados"
-    ),
+    obtenerElemento("dialogoMercados"),
 
   botonCerrarMercados:
-    obtenerElemento(
-      "botonCerrarMercados"
-    ),
+    obtenerElemento("botonCerrarMercados"),
 
   listaMercados:
     obtenerElemento("listaMercados"),
@@ -551,7 +409,7 @@ const interfaz = {
 
 
 /* =====================================================
-5. ESTADO GENERAL
+4. ESTADO GENERAL
 ===================================================== */
 
 const estado = {
@@ -559,9 +417,7 @@ const estado = {
   motorEncendido: false,
 
   simbolo: "1HZ100V",
-
-  mercado:
-    "Volatility 100 (1s) Index",
+  mercado: "Volatility 100 (1s) Index",
 
   estrategia: "rise_fall",
   modo: "fast",
@@ -573,40 +429,50 @@ const estado = {
   ticksRecibidos: 0,
 
   ultimoPrecio: null,
-  precioAnterior: null,
-
-  ultimoPrecioFormateado:
-    "--",
-
   ultimoPipSize: null,
+
+  ultimoAnalisisEn: 0,
 
   resumenTecnico: null,
   ultimaPrediccion: null,
-
-  ultimoAnalisisEn: 0,
 
   senalActiva: null,
 
   historial: [],
 
-  estadisticas: {
-    intentos: 0,
-    aciertos: 0,
-    fallos: 0,
-    racha: 0
-  }
+  estadisticas: {}
 };
 
 
 let temporizadorCapsula = null;
-
-let temporizadorCuentaRegresiva =
-  null;
+let temporizadorCuentaRegresiva = null;
 
 
 /* =====================================================
-6. UTILIDADES
+5. UTILIDADES DE INTERFAZ
 ===================================================== */
+
+function establecerTexto(
+  elemento,
+  texto
+) {
+  if (elemento) {
+    elemento.textContent =
+      String(texto);
+  }
+}
+
+
+function establecerClase(
+  elemento,
+  clase
+) {
+  if (elemento) {
+    elemento.className =
+      clase;
+  }
+}
+
 
 function obtenerHora(
   epoch = null
@@ -678,29 +544,16 @@ function formatearPrecio(
 function obtenerUltimoDigito(
   precioFormateado
 ) {
-  const texto =
+  const coincidencia =
     String(
-      precioFormateado || ""
+      precioFormateado
+    ).match(
+      /(\d)(?!.*\d)/
     );
 
-  for (
-    let indice =
-      texto.length - 1;
-    indice >= 0;
-    indice--
-  ) {
-    const caracter =
-      texto.charAt(indice);
-
-    if (
-      caracter >= "0" &&
-      caracter <= "9"
-    ) {
-      return Number(caracter);
-    }
-  }
-
-  return null;
+  return coincidencia
+    ? Number(coincidencia[1])
+    : null;
 }
 
 
@@ -747,70 +600,138 @@ function registrarActividad(
 
 
 /* =====================================================
-7. BLOQUEAR CONFIGURACIÓN
+6. ESTADÍSTICAS SEPARADAS
 ===================================================== */
 
-function bloquearConfiguracion(
-  bloquear
-) {
-  interfaz.botonAbrirMercados.disabled =
-    bloquear;
+function obtenerClaveEstadistica() {
+  return [
+    estado.simbolo,
+    estado.estrategia,
+    estado.modo,
+    estado.horizonte
+  ].join("|");
+}
 
-  interfaz.selectorEstrategia.disabled =
-    bloquear;
 
-  interfaz.selectorModo.disabled =
-    bloquear;
+function obtenerEstadisticaActual() {
+  const clave =
+    obtenerClaveEstadistica();
 
-  interfaz.selectorHorizonte.disabled =
-    bloquear;
+  if (
+    !estado.estadisticas[
+      clave
+    ]
+  ) {
+    estado.estadisticas[
+      clave
+    ] = {
+      intentos: 0,
+      aciertos: 0,
+      fallos: 0,
+      racha: 0
+    };
+  }
 
-  interfaz.botonAbrirMercados.setAttribute(
-    "aria-disabled",
-    String(bloquear)
+  return estado.estadisticas[
+    clave
+  ];
+}
+
+
+function mostrarEstadisticas() {
+  const datos =
+    obtenerEstadisticaActual();
+
+  const precision =
+    datos.intentos > 0
+      ? (
+          datos.aciertos /
+          datos.intentos
+        ) * 100
+      : null;
+
+  establecerTexto(
+    interfaz.estadisticaIntentos,
+    datos.intentos
   );
 
-  interfaz.botonAbrirMercados.style.opacity =
-    bloquear
-      ? "0.55"
-      : "1";
+  establecerTexto(
+    interfaz.estadisticaAciertos,
+    datos.aciertos
+  );
 
-  interfaz.botonAbrirMercados.style.cursor =
-    bloquear
-      ? "not-allowed"
-      : "pointer";
+  establecerTexto(
+    interfaz.estadisticaFallos,
+    datos.fallos
+  );
+
+  establecerTexto(
+    interfaz.estadisticaPrecision,
+    precision === null
+      ? "NO DATA"
+      : `${precision.toFixed(1)}%`
+  );
+
+  establecerTexto(
+    interfaz.estadisticaRacha,
+    datos.racha
+  );
+
+  establecerTexto(
+    interfaz.precisionObservada,
+    datos.intentos > 0
+      ? `${datos.aciertos} / ${datos.intentos} TESTS`
+      : "0 / 0 TESTS"
+  );
 }
 
 
 /* =====================================================
-8. CONEXIÓN
+7. CONEXIÓN
 ===================================================== */
 
 function actualizarEstadoConexion(
   nuevoEstado,
   texto
 ) {
-  interfaz.estadoConexion.className =
-    `estado-item ${nuevoEstado}`;
+  establecerClase(
+    interfaz.estadoConexion,
+    `estado-item ${nuevoEstado}`
+  );
 
-  interfaz.textoEstadoConexion.textContent =
-    texto;
+  establecerTexto(
+    interfaz.textoEstadoConexion,
+    texto
+  );
 
   estado.conectado =
     nuevoEstado === "live";
 
-  interfaz.botonConectar.disabled =
-    nuevoEstado === "live" ||
-    nuevoEstado === "connecting";
-
-  interfaz.botonDesconectar.disabled =
-    nuevoEstado !== "live";
-
-  interfaz.botonEncenderMotor.disabled =
-    nuevoEstado !== "live";
+  if (
+    interfaz.botonConectar
+  ) {
+    interfaz.botonConectar.disabled =
+      nuevoEstado === "live" ||
+      nuevoEstado === "connecting";
+  }
 
   if (
-    nuevoEstado !== "live"
+    interfaz.botonDesconectar
+  ) {
+    interfaz.botonDesconectar.disabled =
+      nuevoEstado !== "live";
+  }
+
+  if (
+    interfaz.botonEncenderMotor
+  ) {
+    interfaz.botonEncenderMotor.disabled =
+      nuevoEstado !== "live";
+  }
+
+  if (
+    nuevoEstado !== "live" &&
+    estado.motorEncendido
   ) {
     apagarMotor(false);
   }
@@ -818,13 +739,8 @@ function actualizarEstadoConexion(
 
 
 function conectar() {
-  const mercado =
-    obtenerMercado(
-      estado.simbolo
-    );
-
   registrarActividad(
-    `Conectando con ${mercado.nombre}.`
+    `Conectando con ${estado.mercado}.`
   );
 
   derivAPI.conectar(
@@ -841,33 +757,72 @@ function desconectar() {
 
 
 /* =====================================================
+8. BLOQUEAR CONFIGURACIÓN
+===================================================== */
+
+function bloquearConfiguracion(
+  bloquear
+) {
+  [
+    interfaz.botonAbrirMercados,
+    interfaz.selectorEstrategia,
+    interfaz.selectorModo,
+    interfaz.selectorHorizonte
+  ]
+    .filter(Boolean)
+    .forEach(
+      (elemento) => {
+        elemento.disabled =
+          bloquear;
+      }
+    );
+}
+
+
+/* =====================================================
 9. MOTOR
 ===================================================== */
 
 function actualizarEstadoMotor() {
-  interfaz.estadoMotor.className =
+  establecerClase(
+    interfaz.estadoMotor,
     estado.motorEncendido
       ? "estado-item motor-encendido"
-      : "estado-item motor-apagado";
-
-  interfaz.textoEstadoMotor.textContent =
-    estado.motorEncendido
-      ? "ON"
-      : "OFF";
-
-  interfaz.botonEncenderMotor.classList.toggle(
-    "encendido",
-    estado.motorEncendido
+      : "estado-item motor-apagado"
   );
 
-  interfaz.botonEncenderMotor.innerHTML =
+  establecerTexto(
+    interfaz.textoEstadoMotor,
     estado.motorEncendido
-      ? "<span>■</span> STOP ENGINE"
-      : "<span>⚡</span> START ENGINE";
+      ? "ON"
+      : "OFF"
+  );
 
-  interfaz.botonPrediccion.disabled =
-    !estado.conectado ||
-    !estado.motorEncendido;
+  if (
+    interfaz.botonEncenderMotor
+  ) {
+    interfaz.botonEncenderMotor
+      .classList.toggle(
+        "encendido",
+        estado.motorEncendido
+      );
+
+    interfaz.botonEncenderMotor.innerHTML =
+      estado.motorEncendido
+        ? "<span>■</span> STOP ENGINE"
+        : "<span>⚡</span> START ENGINE";
+  }
+
+  if (
+    interfaz.botonPrediccion
+  ) {
+    interfaz.botonPrediccion.disabled =
+      !estado.conectado ||
+      !estado.motorEncendido ||
+      estado.precios.length <
+        CONFIGURACION
+          .minimoTicksBotonPrediccion;
+  }
 
   bloquearConfiguracion(
     estado.motorEncendido
@@ -876,7 +831,9 @@ function actualizarEstadoMotor() {
 
 
 function encenderMotor() {
-  if (!estado.conectado) {
+  if (
+    !estado.conectado
+  ) {
     registrarActividad(
       "Primero debe conectar la herramienta.",
       "advertencia"
@@ -885,58 +842,49 @@ function encenderMotor() {
     return;
   }
 
-  estado.motorEncendido = true;
+  estado.motorEncendido =
+    true;
 
   actualizarEstadoMotor();
 
-  monitorOportunidades.establecerContexto({
-    simbolo:
-      estado.simbolo,
+  monitorOportunidades
+    .establecerContexto({
+      simbolo:
+        estado.simbolo,
 
-    mercado:
-      estado.mercado,
+      mercado:
+        estado.mercado,
 
-    estrategia:
-      estado.estrategia,
+      estrategia:
+        estado.estrategia,
 
-    modo:
-      estado.modo,
+      modo:
+        estado.modo,
 
-    horizonte:
-      estado.horizonte
-  });
+      horizonte:
+        estado.horizonte
+    });
 
   monitorOportunidades.iniciar();
 
-  interfaz.mensajeControl.textContent =
-    "Motor encendido. Buscando una entrada estable.";
+  establecerTexto(
+    interfaz.mensajeControl,
+    "Motor encendido. Buscando una entrada estable."
+  );
+
+  asistenteVoz.anunciarBusqueda({
+    mercado:
+      obtenerNombreMercadoParaVoz(
+        estado.simbolo
+      ),
+
+    estrategia:
+      estado.estrategia
+  });
 
   registrarActividad(
     "Motor de análisis encendido.",
     "exito"
-  );
-
-  const mercadoVoz =
-    obtenerMercadoParaVoz(
-      estado.simbolo
-    );
-
-  const estrategiaVoz =
-    obtenerEstrategiaParaVoz(
-      estado.estrategia
-    );
-
-  asistenteVoz.hablarSecuencia(
-    [
-      "Motor de análisis encendido.",
-      `${mercadoVoz}.`,
-      `Estrategia ${estrategiaVoz}.`,
-      "Buscando entrada."
-    ],
-    {
-      reemplazar: true,
-      pausa: 380
-    }
   );
 }
 
@@ -944,8 +892,11 @@ function encenderMotor() {
 function apagarMotor(
   anunciar = true
 ) {
-  estado.motorEncendido = false;
-  estado.senalActiva = null;
+  estado.motorEncendido =
+    false;
+
+  estado.senalActiva =
+    null;
 
   detenerCuentaRegresiva();
 
@@ -955,10 +906,12 @@ function apagarMotor(
 
   actualizarEstadoMotor();
 
-  interfaz.mensajeControl.textContent =
+  establecerTexto(
+    interfaz.mensajeControl,
     estado.conectado
-      ? "La herramienta está conectada. Configure el mercado y encienda el motor."
-      : "Conecte la herramienta y después encienda el motor.";
+      ? "Configure el mercado y encienda el motor."
+      : "Conecte la herramienta y después encienda el motor."
+  );
 
   if (anunciar) {
     asistenteVoz.anunciarMotor(
@@ -980,10 +933,62 @@ function alternarMotor() {
 
 
 /* =====================================================
-10. SELECTOR DE MERCADOS
+10. NOMBRES PARA VOZ
+===================================================== */
+
+function obtenerNombreMercadoParaVoz(
+  simbolo
+) {
+  const nombres = {
+    "1HZ10V":
+      "Volatilidad 10 de un segundo",
+
+    "1HZ25V":
+      "Volatilidad 25 de un segundo",
+
+    "1HZ50V":
+      "Volatilidad 50 de un segundo",
+
+    "1HZ75V":
+      "Volatilidad 75 de un segundo",
+
+    "1HZ100V":
+      "Volatilidad 100 de un segundo",
+
+    "R_10":
+      "Volatilidad 10 Index",
+
+    "R_25":
+      "Volatilidad 25 Index",
+
+    "R_50":
+      "Volatilidad 50 Index",
+
+    "R_75":
+      "Volatilidad 75 Index",
+
+    "R_100":
+      "Volatilidad 100 Index"
+  };
+
+  return (
+    nombres[simbolo] ||
+    estado.mercado
+  );
+}
+
+
+/* =====================================================
+11. MERCADOS
 ===================================================== */
 
 function construirListaMercados() {
+  if (
+    !interfaz.listaMercados
+  ) {
+    return;
+  }
+
   interfaz.listaMercados.innerHTML =
     "";
 
@@ -1033,9 +1038,10 @@ function construirListaMercados() {
         }
       );
 
-      interfaz.listaMercados.appendChild(
-        boton
-      );
+      interfaz.listaMercados
+        .appendChild(
+          boton
+        );
     }
   );
 }
@@ -1057,16 +1063,10 @@ function abrirMercados() {
 
   if (
     typeof interfaz.dialogoMercados
-      .showModal === "function"
+      ?.showModal === "function"
   ) {
     interfaz.dialogoMercados
       .showModal();
-  } else {
-    interfaz.dialogoMercados
-      .setAttribute(
-        "open",
-        ""
-      );
   }
 }
 
@@ -1074,12 +1074,9 @@ function abrirMercados() {
 function cerrarMercados() {
   if (
     typeof interfaz.dialogoMercados
-      .close === "function"
+      ?.close === "function"
   ) {
     interfaz.dialogoMercados.close();
-  } else {
-    interfaz.dialogoMercados
-      .removeAttribute("open");
   }
 }
 
@@ -1088,17 +1085,6 @@ function seleccionarMercado(
   mercado
 ) {
   cerrarMercados();
-
-  if (
-    estado.motorEncendido
-  ) {
-    registrarActividad(
-      "Apague el motor antes de cambiar el mercado.",
-      "advertencia"
-    );
-
-    return;
-  }
 
   if (
     !mercado ||
@@ -1114,39 +1100,49 @@ function seleccionarMercado(
   estado.mercado =
     mercado.nombre;
 
-  interfaz.mercadoSeleccionado.textContent =
-    mercado.nombre;
+  establecerTexto(
+    interfaz.mercadoSeleccionado,
+    mercado.nombre
+  );
 
-  interfaz.simboloSeleccionado.textContent =
-    mercado.simbolo;
+  establecerTexto(
+    interfaz.simboloSeleccionado,
+    mercado.simbolo
+  );
 
-  interfaz.nombreMercado.textContent =
-    mercado.nombre;
+  establecerTexto(
+    interfaz.nombreMercado,
+    mercado.nombre
+  );
 
   limpiarDatosMercado();
+  mostrarEstadisticas();
 
-  monitorOportunidades.establecerContexto({
-    simbolo:
-      estado.simbolo,
+  monitorOportunidades
+    .establecerContexto({
+      simbolo:
+        mercado.simbolo,
 
-    mercado:
-      estado.mercado
-  });
+      mercado:
+        mercado.nombre
+    });
+
+  if (
+    estado.conectado
+  ) {
+    derivAPI.cambiarSimbolo(
+      mercado.simbolo
+    );
+  }
 
   registrarActividad(
     `Mercado seleccionado: ${mercado.nombre}.`
   );
-
-  if (estado.conectado) {
-    derivAPI.cambiarSimbolo(
-      estado.simbolo
-    );
-  }
 }
 
 
 /* =====================================================
-11. LIMPIAR DATOS
+12. LIMPIAR DATOS
 ===================================================== */
 
 function limpiarDatosMercado() {
@@ -1156,47 +1152,52 @@ function limpiarDatosMercado() {
   estado.ticksRecibidos = 0;
 
   estado.ultimoPrecio = null;
-  estado.precioAnterior = null;
-
-  estado.ultimoPrecioFormateado =
-    "--";
+  estado.ultimoPipSize = null;
 
   estado.resumenTecnico = null;
   estado.ultimaPrediccion = null;
   estado.senalActiva = null;
 
-  interfaz.precioActual.textContent =
-    "--";
+  establecerTexto(
+    interfaz.precioActual,
+    "--"
+  );
 
-  interfaz.precioActual.className =
-    "precio-actual";
+  establecerTexto(
+    interfaz.contadorTicks,
+    "0"
+  );
 
-  interfaz.contadorTicks.textContent =
-    "0";
+  establecerTexto(
+    interfaz.ultimoDigito,
+    "--"
+  );
 
-  interfaz.ultimoDigito.textContent =
-    "--";
+  establecerTexto(
+    interfaz.horaActualizacion,
+    "--"
+  );
 
-  interfaz.horaActualizacion.textContent =
-    "--";
+  establecerTexto(
+    interfaz.estadoDatos,
+    "NO DATA"
+  );
 
-  interfaz.estadoDatos.textContent =
-    "NO DATA";
-
-  interfaz.estadoDatos.className =
-    "insignia-datos";
-
-  interfaz.listaUltimosDigitos.innerHTML =
-    '<span class="mensaje-vacio">Esperando datos</span>';
+  if (
+    interfaz.listaUltimosDigitos
+  ) {
+    interfaz.listaUltimosDigitos.innerHTML =
+      '<span class="mensaje-vacio">Esperando datos</span>';
+  }
 
   actualizarMemoria();
-  limpiarIndicadores();
   mostrarEstadoInicialSenal();
+  actualizarEstadoMotor();
 }
 
 
 /* =====================================================
-12. RECEPCIÓN DE TICKS
+13. TICKS
 ===================================================== */
 
 function procesarTick(
@@ -1211,10 +1212,14 @@ function procesarTick(
   }
 
   const precio =
-    Number(tick.precio);
+    Number(
+      tick.precio
+    );
 
   if (
-    !Number.isFinite(precio)
+    !Number.isFinite(
+      precio
+    )
   ) {
     return;
   }
@@ -1242,7 +1247,9 @@ function procesarTick(
   );
 
   if (
-    Number.isInteger(digito)
+    Number.isInteger(
+      digito
+    )
   ) {
     estado.digitos.push(
       digito
@@ -1258,42 +1265,47 @@ function procesarTick(
     precio
   );
 
-  estado.precioAnterior =
-    estado.ultimoPrecio;
-
   estado.ultimoPrecio =
     precio;
-
-  estado.ultimoPrecioFormateado =
-    precioFormateado;
 
   estado.ultimoPipSize =
     tick.pipSize;
 
-  interfaz.precioActual.textContent =
-    precioFormateado;
+  establecerTexto(
+    interfaz.precioActual,
+    precioFormateado
+  );
 
-  interfaz.contadorTicks.textContent =
-    String(
-      estado.ticksRecibidos
-    );
+  establecerTexto(
+    interfaz.contadorTicks,
+    estado.ticksRecibidos
+  );
 
-  interfaz.ultimoDigito.textContent =
+  establecerTexto(
+    interfaz.ultimoDigito,
     Number.isInteger(digito)
-      ? String(digito)
-      : "--";
+      ? digito
+      : "--"
+  );
 
-  interfaz.horaActualizacion.textContent =
-    obtenerHora(tick.epoch);
+  establecerTexto(
+    interfaz.horaActualizacion,
+    obtenerHora(tick.epoch)
+  );
 
-  interfaz.estadoDatos.textContent =
-    "LIVE DATA";
+  establecerTexto(
+    interfaz.estadoDatos,
+    "LIVE DATA"
+  );
 
-  interfaz.estadoDatos.className =
-    "insignia-datos live";
+  interfaz.estadoDatos
+    ?.classList.add(
+      "live"
+    );
 
   mostrarUltimosDigitos();
   actualizarMemoria();
+  actualizarEstadoMotor();
 
   evaluarSenalActiva(
     precio,
@@ -1311,10 +1323,17 @@ function procesarTick(
 function mostrarMovimientoPrecio(
   precio
 ) {
-  interfaz.precioActual.classList.remove(
-    "sube",
-    "baja"
-  );
+  if (
+    !interfaz.precioActual
+  ) {
+    return;
+  }
+
+  interfaz.precioActual
+    .classList.remove(
+      "sube",
+      "baja"
+    );
 
   if (
     !Number.isFinite(
@@ -1328,81 +1347,84 @@ function mostrarMovimientoPrecio(
     precio >
     estado.ultimoPrecio
   ) {
-    interfaz.precioActual.classList.add(
-      "sube"
-    );
+    interfaz.precioActual
+      .classList.add(
+        "sube"
+      );
   }
 
   if (
     precio <
     estado.ultimoPrecio
   ) {
-    interfaz.precioActual.classList.add(
-      "baja"
-    );
+    interfaz.precioActual
+      .classList.add(
+        "baja"
+      );
   }
 }
 
 
 /* =====================================================
-13. MEMORIA Y ÚLTIMOS DÍGITOS
+14. MEMORIA Y DÍGITOS
 ===================================================== */
 
 function actualizarMemoria() {
   const cantidad =
     estado.precios.length;
 
-  const maximo =
-    CONFIGURACION.maximoPrecios;
-
   const porcentaje =
     Math.min(
       100,
       (
         cantidad /
-        maximo
+        CONFIGURACION.maximoPrecios
       ) * 100
     );
 
-  const texto =
-    `${cantidad} / ${maximo}`;
+  establecerTexto(
+    interfaz.estadoMemoria,
+    `${cantidad} / ${CONFIGURACION.maximoPrecios}`
+  );
 
-  interfaz.estadoMemoria.textContent =
-    texto;
+  establecerTexto(
+    interfaz.numeroProgreso,
+    `${cantidad} / ${CONFIGURACION.maximoPrecios}`
+  );
 
-  interfaz.numeroProgreso.textContent =
-    texto;
+  if (
+    interfaz.barraMemoria
+  ) {
+    interfaz.barraMemoria.style.width =
+      `${porcentaje}%`;
+  }
 
-  interfaz.barraMemoria.style.width =
-    `${porcentaje}%`;
-
-  interfaz.textoProgreso.textContent =
+  establecerTexto(
+    interfaz.textoProgreso,
     estado.conectado
       ? "LIVE MARKET MEMORY"
-      : "WAITING CONNECTION";
+      : "WAITING CONNECTION"
+  );
 }
 
 
 function mostrarUltimosDigitos() {
+  if (
+    !interfaz.listaUltimosDigitos
+  ) {
+    return;
+  }
+
   const ultimos =
     estado.digitos.slice(-20);
 
-  interfaz.cantidadDigitos.textContent =
-    String(
-      ultimos.length
-    );
+  establecerTexto(
+    interfaz.cantidadDigitos,
+    ultimos.length
+  );
 
-  interfaz.listaUltimosDigitos.innerHTML =
-    "";
-
-  if (
-    ultimos.length === 0
-  ) {
-    interfaz.listaUltimosDigitos.innerHTML =
-      '<span class="mensaje-vacio">Esperando datos</span>';
-
-    return;
-  }
+  interfaz.listaUltimosDigitos
+    .innerHTML = "";
 
   ultimos.forEach(
     (digito, indice) => {
@@ -1426,20 +1448,17 @@ function mostrarUltimosDigitos() {
         );
       }
 
-      interfaz.listaUltimosDigitos.appendChild(
-        elemento
-      );
+      interfaz.listaUltimosDigitos
+        .appendChild(
+          elemento
+        );
     }
   );
-
-  interfaz.listaUltimosDigitos.scrollLeft =
-    interfaz.listaUltimosDigitos
-      .scrollWidth;
 }
 
 
 /* =====================================================
-14. ANÁLISIS
+15. ANÁLISIS
 ===================================================== */
 
 function analizarMercado(
@@ -1451,12 +1470,12 @@ function analizarMercado(
     return null;
   }
 
-  const momentoActual =
+  const momento =
     Date.now();
 
   if (
     !forzar &&
-    momentoActual -
+    momento -
       estado.ultimoAnalisisEn <
       CONFIGURACION
         .intervaloAnalisisMilisegundos
@@ -1465,7 +1484,7 @@ function analizarMercado(
   }
 
   estado.ultimoAnalisisEn =
-    momentoActual;
+    momento;
 
   estado.resumenTecnico =
     crearResumenTecnico({
@@ -1483,7 +1502,7 @@ function analizarMercado(
     estado.resumenTecnico
   );
 
-  const prediccion =
+  estado.ultimaPrediccion =
     generarPrediccion({
       estrategia:
         estado.estrategia,
@@ -1492,53 +1511,108 @@ function analizarMercado(
         estado.resumenTecnico
     });
 
-  estado.ultimaPrediccion =
-    prediccion;
-
-  mostrarPuntajeEnMonitoreo(
-    prediccion
+  mostrarPuntajeActual(
+    estado.ultimaPrediccion
   );
 
   monitorOportunidades.procesar(
-    prediccion
+    estado.ultimaPrediccion
   );
 
-  return prediccion;
+  return estado.ultimaPrediccion;
 }
 
 
 /* =====================================================
-15. INDICADORES
+16. BOTÓN PREDICTION
 ===================================================== */
 
-function limpiarIndicadores() {
-  interfaz.tendencia.textContent =
-    "--";
+function ejecutarAnalisisManual() {
+  const resultado =
+    analizarMercado(true);
 
-  interfaz.detalleTendencia.textContent =
-    "Esperando datos";
+  if (!resultado) {
+    mostrarCapsula({
+      tipo: "cancelled",
+      estadoTexto: "MANUAL ANALYSIS",
+      valor: "NO DATA",
+      detalle:
+        "Todavía no hay suficientes datos.",
+      duracion:
+        CONFIGURACION
+          .tiempoCapsulaManual
+    });
 
-  interfaz.rsi.textContent =
-    "--";
+    asistenteVoz
+      .anunciarAnalisisManual(
+        null
+      );
 
-  interfaz.detalleRsi.textContent =
-    "Esperando datos";
+    return;
+  }
 
-  interfaz.momentum.textContent =
-    "--";
+  mostrarCapsula({
+    tipo:
+      resultado.direccion ===
+        "WAIT"
+        ? "cancelled"
+        : "prepare",
 
-  interfaz.detalleMomentum.textContent =
-    "Esperando datos";
+    estadoTexto:
+      "MANUAL ANALYSIS",
 
-  interfaz.volatilidad.textContent =
-    "--";
+    valor:
+      obtenerValorVisual(
+        resultado
+      ),
 
-  interfaz.detalleVolatilidad.textContent =
-    "Esperando datos";
+    detalle:
+      crearTextoOperacion(
+        resultado
+      ),
 
-  limpiarFibonacci();
+    duracion:
+      CONFIGURACION
+        .tiempoCapsulaManual
+  });
+
+  mostrarMotivos(
+    resultado
+  );
+
+  establecerTexto(
+    interfaz.tituloPrediccion,
+    "Resultado del análisis manual"
+  );
+
+  establecerTexto(
+    interfaz.valorPrediccion,
+    obtenerValorVisual(
+      resultado
+    )
+  );
+
+  establecerTexto(
+    interfaz.mensajeOperacion,
+    crearTextoOperacion(
+      resultado
+    )
+  );
+
+  asistenteVoz
+    .anunciarAnalisisManual(
+      resultado
+    );
+
+  registrarActividad(
+    `Análisis manual: ${crearTextoOperacion(resultado)}`
+  );
 }
 
+
+/* =====================================================
+17. INDICADORES
+===================================================== */
 
 function mostrarIndicadores(
   resumen
@@ -1547,78 +1621,68 @@ function mostrarIndicadores(
     return;
   }
 
-  interfaz.tendencia.textContent =
-    resumen.tendencia.direccion;
+  establecerTexto(
+    interfaz.tendencia,
+    resumen.tendencia
+      ?.direccion || "--"
+  );
 
-  interfaz.detalleTendencia.textContent =
-    `Cambio: ${resumen.tendencia
-      .cambioPorcentual
-      .toFixed(4)}%`;
+  establecerTexto(
+    interfaz.detalleTendencia,
+    `Cambio: ${Number(
+      resumen.tendencia
+        ?.cambioPorcentual || 0
+    ).toFixed(4)}%`
+  );
 
-  interfaz.rsi.textContent =
-    Number.isFinite(resumen.rsi)
+  establecerTexto(
+    interfaz.rsi,
+    Number.isFinite(
+      resumen.rsi
+    )
       ? resumen.rsi.toFixed(1)
-      : "--";
+      : "--"
+  );
 
-  interfaz.detalleRsi.textContent =
+  establecerTexto(
+    interfaz.detalleRsi,
     resumen.interpretacionRsi
-      .zona;
+      ?.zona || "Sin datos"
+  );
 
-  interfaz.momentum.textContent =
-    resumen.momentum.direccion;
+  establecerTexto(
+    interfaz.momentum,
+    resumen.momentum
+      ?.direccion || "--"
+  );
 
-  interfaz.detalleMomentum.textContent =
-    `${resumen.momentum
-      .porcentaje
-      .toFixed(4)}%`;
+  establecerTexto(
+    interfaz.detalleMomentum,
+    `${Number(
+      resumen.momentum
+        ?.porcentaje || 0
+    ).toFixed(4)}%`
+  );
 
-  interfaz.volatilidad.textContent =
-    `${resumen.volatilidad
-      .porcentaje
-      .toFixed(4)}%`;
+  establecerTexto(
+    interfaz.volatilidad,
+    `${Number(
+      resumen.volatilidad
+        ?.porcentaje || 0
+    ).toFixed(4)}%`
+  );
 
-  interfaz.detalleVolatilidad.textContent =
-    `Nivel ${resumen.volatilidad
-      .nivel}`;
+  establecerTexto(
+    interfaz.detalleVolatilidad,
+    `Nivel ${
+      resumen.volatilidad
+        ?.nivel || "--"
+    }`
+  );
 
   mostrarFibonacci(
     resumen.fibonacci
   );
-}
-
-
-/* =====================================================
-16. FIBONACCI
-===================================================== */
-
-function limpiarFibonacci() {
-  interfaz.estadoFibonacci.textContent =
-    "NO DATA";
-
-  interfaz.detalleFibonacci.textContent =
-    "Reuniendo precios para calcular los niveles.";
-
-  interfaz.nivelFibonacciCercano.textContent =
-    "--";
-
-  interfaz.maximoFibonacci.textContent =
-    "--";
-
-  interfaz.minimoFibonacci.textContent =
-    "--";
-
-  interfaz.distanciaFibonacci.textContent =
-    "--";
-
-  interfaz.nivelesFibonacci
-    .querySelectorAll("span")
-    .forEach(
-      (elemento) => {
-        elemento.classList.remove(
-          "activo"
-        );
-      }
-    );
 }
 
 
@@ -1629,141 +1693,308 @@ function mostrarFibonacci(
     !fibonacci ||
     !fibonacci.disponible
   ) {
-    limpiarFibonacci();
+    establecerTexto(
+      interfaz.estadoFibonacci,
+      "NO DATA"
+    );
+
+    establecerTexto(
+      interfaz.detalleFibonacci,
+      "Reuniendo precios."
+    );
+
+    establecerTexto(
+      interfaz.nivelFibonacciCercano,
+      "--"
+    );
+
+    establecerTexto(
+      interfaz.maximoFibonacci,
+      "--"
+    );
+
+    establecerTexto(
+      interfaz.minimoFibonacci,
+      "--"
+    );
+
+    establecerTexto(
+      interfaz.distanciaFibonacci,
+      "--"
+    );
 
     return;
   }
 
-  interfaz.estadoFibonacci.textContent =
-    fibonacci.estado;
+  establecerTexto(
+    interfaz.estadoFibonacci,
+    fibonacci.estado
+  );
 
-  interfaz.detalleFibonacci.textContent =
+  establecerTexto(
+    interfaz.detalleFibonacci,
     fibonacci.cercaDeNivel
       ? fibonacci.tipoZona
-      : "El precio no está cerca de un nivel relevante.";
+      : "Sin nivel cercano."
+  );
 
-  interfaz.nivelFibonacciCercano.textContent =
+  establecerTexto(
+    interfaz.nivelFibonacciCercano,
     fibonacci.nivelCercano
-      ? `${fibonacci.nivelCercano
-          .porcentaje}%`
-      : "--";
+      ? `${fibonacci.nivelCercano.porcentaje}%`
+      : "--"
+  );
 
-  interfaz.maximoFibonacci.textContent =
+  establecerTexto(
+    interfaz.maximoFibonacci,
     formatearPrecio(
       fibonacci.maximo,
       estado.ultimoPipSize
-    );
+    )
+  );
 
-  interfaz.minimoFibonacci.textContent =
+  establecerTexto(
+    interfaz.minimoFibonacci,
     formatearPrecio(
       fibonacci.minimo,
       estado.ultimoPipSize
-    );
+    )
+  );
 
-  interfaz.distanciaFibonacci.textContent =
+  establecerTexto(
+    interfaz.distanciaFibonacci,
     fibonacci.nivelCercano
-      ? `${fibonacci.nivelCercano
-          .distanciaPorcentual
-          .toFixed(2)}%`
-      : "--";
-
-  interfaz.nivelesFibonacci
-    .querySelectorAll("span")
-    .forEach(
-      (elemento) => {
-        const nivel =
-          Number(
-            elemento.dataset.nivel
-          );
-
-        elemento.classList.toggle(
-          "activo",
-          Boolean(
-            fibonacci.nivelCercano &&
-            nivel ===
-              fibonacci.nivelCercano
-                .porcentaje
-          )
-        );
-      }
-    );
+      ? `${fibonacci.nivelCercano.distanciaPorcentual.toFixed(2)}%`
+      : "--"
+  );
 }
 
 
 /* =====================================================
-17. PANEL DE PREDICCIÓN
+18. PUNTAJE
 ===================================================== */
 
-function mostrarEstadoInicialSenal() {
-  interfaz.panelSenal.className =
-    "panel-senal monitoring";
-
-  interfaz.estadoPrediccion.textContent =
-    "MONITORING";
-
-  interfaz.tituloPrediccion.textContent =
-    "Esperando oportunidad";
-
-  interfaz.valorPrediccion.textContent =
-    "--";
-
-  interfaz.puntajeSenal.textContent =
-    "--";
-
-  interfaz.barraPuntaje.style.width =
-    "0%";
-
-  interfaz.listaMotivos.innerHTML =
-    "<li>El motor todavía no ha generado una señal.</li>";
-
-  interfaz.mensajeOperacion.textContent =
-    "Sin señal activa.";
-
-  interfaz.cuentaRegresiva.textContent =
-    "--";
-}
-
-
-function mostrarPuntajeEnMonitoreo(
-  prediccion
+function mostrarPuntajeActual(
+  resultado
 ) {
-  if (!prediccion) {
+  if (!resultado) {
     return;
   }
 
-  const estadoMonitor =
-    monitorOportunidades
-      .obtenerEstado()
-      .estado;
+  establecerTexto(
+    interfaz.puntajeSenal,
+    `${resultado.puntaje}/100`
+  );
 
   if (
-    [
-      ESTADOS_MONITOR.CONFIRMED,
-      ESTADOS_MONITOR.EXECUTING,
-      ESTADOS_MONITOR.RESULT
-    ].includes(estadoMonitor)
+    interfaz.barraPuntaje
+  ) {
+    interfaz.barraPuntaje.style.width =
+      `${resultado.puntaje}%`;
+  }
+
+  const clasificacion =
+    clasificarPuntaje(
+      resultado.puntaje,
+      resultado.estrategia
+    );
+
+  establecerTexto(
+    interfaz.mensajeOperacion,
+    `Signal Quality: ${clasificacion.nivel}`
+  );
+}
+
+
+/* =====================================================
+19. VALOR VISUAL
+===================================================== */
+
+function obtenerValorVisual(
+  resultado
+) {
+  if (!resultado) {
+    return "--";
+  }
+
+  if (
+    resultado.direccion ===
+    "MATCH"
+  ) {
+    const numero =
+      resultado.metadata
+        ?.digito;
+
+    return (
+      `MATCHES ${numero ?? ""}`
+    ).trim();
+  }
+
+  return resultado.direccion;
+}
+
+
+/* =====================================================
+20. PANEL DE SEÑAL
+===================================================== */
+
+function mostrarEstadoInicialSenal() {
+  establecerClase(
+    interfaz.panelSenal,
+    "panel-senal monitoring"
+  );
+
+  establecerTexto(
+    interfaz.estadoPrediccion,
+    "MONITORING"
+  );
+
+  establecerTexto(
+    interfaz.tituloPrediccion,
+    "Esperando oportunidad"
+  );
+
+  establecerTexto(
+    interfaz.valorPrediccion,
+    "--"
+  );
+
+  establecerTexto(
+    interfaz.puntajeSenal,
+    "--"
+  );
+
+  if (
+    interfaz.barraPuntaje
+  ) {
+    interfaz.barraPuntaje.style.width =
+      "0%";
+  }
+
+  establecerTexto(
+    interfaz.mensajeOperacion,
+    "Sin señal activa."
+  );
+
+  establecerTexto(
+    interfaz.cuentaRegresiva,
+    "--"
+  );
+
+  if (
+    interfaz.listaMotivos
+  ) {
+    interfaz.listaMotivos.innerHTML =
+      "<li>El motor todavía no ha generado una señal.</li>";
+  }
+}
+
+
+function mostrarResultadoPanel(
+  resultado,
+  fase
+) {
+  const clase =
+    fase === "CONFIRMED"
+      ? "confirmed"
+      : "prepare";
+
+  establecerClase(
+    interfaz.panelSenal,
+    `panel-senal ${clase}`
+  );
+
+  establecerTexto(
+    interfaz.estadoPrediccion,
+    fase
+  );
+
+  establecerTexto(
+    interfaz.tituloPrediccion,
+    fase === "CONFIRMED"
+      ? "Señal técnica confirmada"
+      : fase === "REVALIDATING"
+        ? "Revalidando entrada"
+        : "Posible oportunidad detectada"
+  );
+
+  establecerTexto(
+    interfaz.valorPrediccion,
+    obtenerValorVisual(
+      resultado
+    )
+  );
+
+  establecerTexto(
+    interfaz.puntajeSenal,
+    `${resultado.puntaje}/100`
+  );
+
+  if (
+    interfaz.barraPuntaje
+  ) {
+    interfaz.barraPuntaje.style.width =
+      `${resultado.puntaje}%`;
+  }
+
+  mostrarMotivos(
+    resultado
+  );
+
+  establecerTexto(
+    interfaz.mensajeOperacion,
+    fase === "CONFIRMED"
+      ? "Ejecute la operación ahora."
+      : fase === "REVALIDATING"
+        ? "Espere la confirmación final."
+        : "Prepare el bot y espere confirmación."
+  );
+}
+
+
+function mostrarMotivos(
+  resultado
+) {
+  if (
+    !interfaz.listaMotivos
   ) {
     return;
   }
 
-  interfaz.puntajeSenal.textContent =
-    `${prediccion.puntaje}/100`;
+  interfaz.listaMotivos.innerHTML =
+    "";
 
-  interfaz.barraPuntaje.style.width =
-    `${prediccion.puntaje}%`;
+  const mensajes = [
+    ...(resultado.razones || []),
 
-  const clasificacion =
-    clasificarPuntaje(
-      prediccion.puntaje
-    );
+    ...(resultado.advertencias || [])
+      .map(
+        (texto) =>
+          `⚠ ${texto}`
+      )
+  ];
 
-  interfaz.mensajeOperacion.textContent =
-    `Signal Quality: ${clasificacion.nivel}`;
+  mensajes.forEach(
+    (texto) => {
+      const elemento =
+        document.createElement(
+          "li"
+        );
+
+      elemento.textContent =
+        texto;
+
+      interfaz.listaMotivos
+        .appendChild(
+          elemento
+        );
+    }
+  );
 }
 
 
 /* =====================================================
-18. ESTADOS DEL MONITOR
+21. ESTADOS DEL MONITOR
 ===================================================== */
 
 function manejarEstadoMonitor(
@@ -1772,143 +2003,117 @@ function manejarEstadoMonitor(
   const estadoMonitor =
     datos.estado;
 
-  interfaz.textoEstadoMonitoreo.textContent =
-    estadoMonitor;
+  establecerTexto(
+    interfaz.textoEstadoMonitoreo,
+    estadoMonitor
+  );
 
-  interfaz.estadoMonitoreo.className =
-    "estado-item";
+  establecerClase(
+    interfaz.estadoMonitoreo,
+    "estado-item"
+  );
 
-  interfaz.panelMonitoreo.className =
-    "panel-monitoreo";
+  establecerClase(
+    interfaz.panelMonitoreo,
+    "panel-monitoreo"
+  );
 
-  if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.INACTIVE
-  ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "monitoreo-inactivo"
-    );
+  const titulos = {
+    INACTIVE:
+      "MONITORING INACTIVE",
 
-    interfaz.panelMonitoreo.classList.add(
-      "inactive"
-    );
+    MONITORING:
+      "SEARCHING ENTRY",
 
-    interfaz.tituloMonitoreo.textContent =
-      "MONITORING INACTIVE";
-  }
+    CANDIDATE:
+      "VALIDATING ENTRY",
 
+    PREPARE:
+      "PREPARE",
 
-  if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.MONITORING
-  ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "monitoreo-activo"
-    );
+    REVALIDATING:
+      "REVALIDATING",
 
-    interfaz.panelMonitoreo.classList.add(
-      "monitoring"
-    );
+    CONFIRMED:
+      "CONFIRMED",
 
-    interfaz.tituloMonitoreo.textContent =
-      "SEARCHING ENTRY";
-  }
+    EXECUTING:
+      "EXECUTE NOW",
 
+    RESULT:
+      "RESULT",
 
-  if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.CANDIDATE
-  ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "monitoreo-activo"
-    );
+    CANCELLED:
+      "OPPORTUNITY CANCELLED"
+  };
 
-    interfaz.panelMonitoreo.classList.add(
-      "monitoring"
-    );
+  establecerTexto(
+    interfaz.tituloMonitoreo,
+    titulos[
+      estadoMonitor
+    ] ||
+    estadoMonitor
+  );
 
-    interfaz.tituloMonitoreo.textContent =
-      "VALIDATING ENTRY";
-
-    interfaz.detalleMonitoreo.textContent =
-      "Se detectó una posible oportunidad. Verificando estabilidad antes de mostrar la prealerta.";
-  }
-
+  establecerTexto(
+    interfaz.detalleMonitoreo,
+    datos.mensaje ||
+    "Analizando el mercado."
+  );
 
   if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.PREPARE
+    interfaz.panelMonitoreo
   ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "prepare"
-    );
-
-    interfaz.panelMonitoreo.classList.add(
-      "prepare"
-    );
-
-    interfaz.tituloMonitoreo.textContent =
-      "PREPARE";
+    if (
+      [
+        ESTADOS_MONITOR.PREPARE,
+        ESTADOS_MONITOR.REVALIDATING
+      ].includes(
+        estadoMonitor
+      )
+    ) {
+      interfaz.panelMonitoreo
+        .classList.add(
+          "prepare"
+        );
+    } else if (
+      [
+        ESTADOS_MONITOR.CONFIRMED,
+        ESTADOS_MONITOR.EXECUTING
+      ].includes(
+        estadoMonitor
+      )
+    ) {
+      interfaz.panelMonitoreo
+        .classList.add(
+          "confirmed"
+        );
+    } else {
+      interfaz.panelMonitoreo
+        .classList.add(
+          "monitoring"
+        );
+    }
   }
-
 
   if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.CONFIRMED
+    interfaz.botonCancelarMonitoreo
   ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "monitoreo-activo"
-    );
-
-    interfaz.panelMonitoreo.classList.add(
-      "confirmed"
-    );
-
-    interfaz.tituloMonitoreo.textContent =
-      "CONFIRMED";
+    interfaz.botonCancelarMonitoreo.hidden =
+      ![
+        ESTADOS_MONITOR.PREPARE,
+        ESTADOS_MONITOR.REVALIDATING,
+        ESTADOS_MONITOR.CONFIRMED,
+        ESTADOS_MONITOR.EXECUTING
+      ].includes(
+        estadoMonitor
+      );
   }
-
-
-  if (
-    estadoMonitor ===
-    ESTADOS_MONITOR.CANCELLED
-  ) {
-    interfaz.estadoMonitoreo.classList.add(
-      "prepare"
-    );
-
-    interfaz.panelMonitoreo.classList.add(
-      "prepare"
-    );
-
-    interfaz.tituloMonitoreo.textContent =
-      "OPPORTUNITY CANCELLED";
-  }
-
-
-  if (
-    estadoMonitor !==
-    ESTADOS_MONITOR.CANDIDATE
-  ) {
-    interfaz.detalleMonitoreo.textContent =
-      datos.mensaje ||
-      "Analizando el mercado.";
-  }
-
-
-  const puedeCancelar =
-    estadoMonitor ===
-      ESTADOS_MONITOR.PREPARE ||
-    estadoMonitor ===
-      ESTADOS_MONITOR.CONFIRMED;
-
-  interfaz.botonCancelarMonitoreo.hidden =
-    !puedeCancelar;
 }
 
 
 /* =====================================================
-19. PREPARE
+22. PREPARE
 ===================================================== */
 
 function manejarPrepare({
@@ -1922,7 +2127,8 @@ function manejarPrepare({
   mostrarCapsula({
     tipo: "prepare",
 
-    estadoTexto: "PREPARE",
+    estadoTexto:
+      "PREPARE",
 
     valor:
       obtenerValorVisual(
@@ -1937,14 +2143,53 @@ function manejarPrepare({
         .tiempoCapsulaPrepare
   });
 
-  asistenteVoz.anunciarPrepare(
-    resultado
-  );
+  asistenteVoz
+    .anunciarPrepare(
+      resultado
+    );
 }
 
 
 /* =====================================================
-20. CONFIRMED
+23. REVALIDATING
+===================================================== */
+
+function manejarRevalidacion({
+  resultado
+}) {
+  mostrarResultadoPanel(
+    resultado,
+    "REVALIDATING"
+  );
+
+  mostrarCapsula({
+    tipo: "prepare",
+
+    estadoTexto:
+      "REVALIDATING",
+
+    valor:
+      obtenerValorVisual(
+        resultado
+      ),
+
+    detalle:
+      "Validando la señal con los últimos ticks.",
+
+    duracion:
+      CONFIGURACION
+        .tiempoCapsulaRevalidacion
+  });
+
+  asistenteVoz
+    .anunciarRevalidacion(
+      resultado
+    );
+}
+
+
+/* =====================================================
+24. CONFIRMACIÓN
 ===================================================== */
 
 function manejarConfirmacion({
@@ -1973,7 +2218,8 @@ function manejarConfirmacion({
   mostrarCapsula({
     tipo: "confirmed",
 
-    estadoTexto: "EXECUTE NOW",
+    estadoTexto:
+      "EXECUTE NOW",
 
     valor:
       obtenerValorVisual(
@@ -1988,9 +2234,10 @@ function manejarConfirmacion({
         .tiempoCapsulaConfirmada
   });
 
-  asistenteVoz.anunciarConfirmacion(
-    resultado
-  );
+  asistenteVoz
+    .anunciarConfirmacion(
+      resultado
+    );
 
   monitorOportunidades
     .marcarEjecutando();
@@ -2006,21 +2253,23 @@ function manejarConfirmacion({
 
 
 /* =====================================================
-21. CANCELACIÓN
+25. CANCELACIÓN
 ===================================================== */
 
 function manejarCancelacion({
   motivo,
   resultado
 }) {
-  estado.senalActiva = null;
+  estado.senalActiva =
+    null;
 
   detenerCuentaRegresiva();
 
   mostrarCapsula({
     tipo: "cancelled",
 
-    estadoTexto: "CANCELLED",
+    estadoTexto:
+      "CANCELLED",
 
     valor:
       resultado
@@ -2036,14 +2285,15 @@ function manejarCancelacion({
     duracion: 3200
   });
 
-  asistenteVoz.anunciarCancelacion(
-    motivo
-  );
+  asistenteVoz
+    .anunciarCancelacion(
+      motivo
+    );
 }
 
 
 /* =====================================================
-22. RESULTADO
+26. RESULTADO
 ===================================================== */
 
 function manejarResultado({
@@ -2052,13 +2302,54 @@ function manejarResultado({
 }) {
   detenerCuentaRegresiva();
 
-  mostrarResultadoFinal(
-    acierto,
-    resultado
+  const estadistica =
+    obtenerEstadisticaActual();
+
+  estadistica.intentos++;
+
+  if (acierto) {
+    estadistica.aciertos++;
+    estadistica.racha++;
+  } else {
+    estadistica.fallos++;
+    estadistica.racha = 0;
+  }
+
+  mostrarEstadisticas();
+
+  establecerClase(
+    interfaz.panelSenal,
+    acierto
+      ? "panel-senal success"
+      : "panel-senal failed"
   );
 
-  actualizarEstadisticas(
+  establecerTexto(
+    interfaz.estadoPrediccion,
     acierto
+      ? "RESULT: SUCCESS"
+      : "RESULT: FAILED"
+  );
+
+  establecerTexto(
+    interfaz.tituloPrediccion,
+    acierto
+      ? "La predicción fue acertada"
+      : "La predicción no fue acertada"
+  );
+
+  establecerTexto(
+    interfaz.valorPrediccion,
+    obtenerValorVisual(
+      resultado
+    )
+  );
+
+  establecerTexto(
+    interfaz.cuentaRegresiva,
+    acierto
+      ? "✓"
+      : "×"
   );
 
   mostrarCapsula({
@@ -2087,162 +2378,18 @@ function manejarResultado({
         .tiempoCapsulaResultado
   });
 
-  asistenteVoz.anunciarResultado(
-    acierto
-  );
+  asistenteVoz
+    .anunciarResultado(
+      acierto
+    );
 
-  estado.senalActiva = null;
+  estado.senalActiva =
+    null;
 }
 
 
 /* =====================================================
-23. MOSTRAR RESULTADOS
-===================================================== */
-
-function obtenerValorVisual(
-  resultado
-) {
-  if (!resultado) {
-    return "--";
-  }
-
-  if (
-    resultado.direccion ===
-      "MATCH" &&
-    Number.isInteger(
-      resultado.metadata?.digito
-    )
-  ) {
-    return (
-      `MATCH ` +
-      resultado.metadata.digito
-    );
-  }
-
-  return resultado.direccion;
-}
-
-
-function mostrarResultadoPanel(
-  resultado,
-  fase
-) {
-  const clase =
-    fase === "CONFIRMED"
-      ? "confirmed"
-      : "prepare";
-
-  interfaz.panelSenal.className =
-    `panel-senal ${clase}`;
-
-  interfaz.estadoPrediccion.textContent =
-    fase;
-
-  interfaz.tituloPrediccion.textContent =
-    fase === "CONFIRMED"
-      ? "Señal técnica confirmada"
-      : "Posible oportunidad detectada";
-
-  interfaz.valorPrediccion.textContent =
-    obtenerValorVisual(
-      resultado
-    );
-
-  interfaz.puntajeSenal.textContent =
-    `${resultado.puntaje}/100`;
-
-  interfaz.barraPuntaje.style.width =
-    `${resultado.puntaje}%`;
-
-  mostrarMotivos(
-    resultado
-  );
-
-  interfaz.mensajeOperacion.textContent =
-    fase === "CONFIRMED"
-      ? "Ejecute la operación ahora."
-      : "Prepare el bot y espere confirmación.";
-}
-
-
-function mostrarMotivos(
-  resultado
-) {
-  interfaz.listaMotivos.innerHTML =
-    "";
-
-  const mensajes = [
-    ...(resultado.razones || []),
-
-    ...(resultado.advertencias || [])
-      .map(
-        (texto) =>
-          `⚠ ${texto}`
-      )
-  ];
-
-  if (
-    mensajes.length === 0
-  ) {
-    mensajes.push(
-      "Sin explicación disponible."
-    );
-  }
-
-  mensajes.forEach(
-    (texto) => {
-      const elemento =
-        document.createElement(
-          "li"
-        );
-
-      elemento.textContent =
-        texto;
-
-      interfaz.listaMotivos.appendChild(
-        elemento
-      );
-    }
-  );
-}
-
-
-function mostrarResultadoFinal(
-  acierto,
-  resultado
-) {
-  interfaz.panelSenal.className =
-    acierto
-      ? "panel-senal success"
-      : "panel-senal failed";
-
-  interfaz.estadoPrediccion.textContent =
-    acierto
-      ? "RESULT: SUCCESS"
-      : "RESULT: FAILED";
-
-  interfaz.tituloPrediccion.textContent =
-    acierto
-      ? "La predicción fue acertada"
-      : "La predicción no fue acertada";
-
-  interfaz.valorPrediccion.textContent =
-    obtenerValorVisual(
-      resultado
-    );
-
-  interfaz.mensajeOperacion.textContent =
-    "Señal finalizada. El monitoreo continuará automáticamente.";
-
-  interfaz.cuentaRegresiva.textContent =
-    acierto
-      ? "✓"
-      : "×";
-}
-
-
-/* =====================================================
-24. EVALUAR SEÑAL
+27. EVALUAR SEÑAL
 ===================================================== */
 
 function evaluarSenalActiva(
@@ -2325,21 +2472,47 @@ function evaluarSenalActiva(
     ticksTranscurridos >= 1
   ) {
     const digitoEsperado =
-      resultado.metadata?.digito;
+      resultado.metadata
+        ?.digito;
 
-    const acierto =
+    const ventanaMaxima =
+      resultado.metadata
+        ?.ventanaEvaluacionTicks ||
+      5;
+
+    if (
       digito ===
-      digitoEsperado;
+      digitoEsperado
+    ) {
+      finalizarEvaluacion(
+        true,
+        {
+          digitoResultado:
+            digito,
 
-    finalizarEvaluacion(
-      acierto,
-      {
-        digitoResultado:
-          digito,
+          ticksTranscurridos
+        }
+      );
 
-        digitoEsperado
-      }
-    );
+      return;
+    }
+
+    if (
+      ticksTranscurridos >=
+      ventanaMaxima
+    ) {
+      finalizarEvaluacion(
+        false,
+        {
+          digitoResultado:
+            digito,
+
+          digitoEsperado,
+
+          ticksTranscurridos
+        }
+      );
+    }
 
     return;
   }
@@ -2347,7 +2520,7 @@ function evaluarSenalActiva(
 
   if (
     resultado.estrategia ===
-      "rise_fall"
+    "rise_fall"
   ) {
     const segundos =
       obtenerSegundosHorizonte();
@@ -2405,18 +2578,20 @@ function finalizarEvaluacion(
 
 
 /* =====================================================
-25. CUENTA REGRESIVA
+28. CUENTA REGRESIVA
 ===================================================== */
 
 function obtenerSegundosHorizonte() {
   if (
-    estado.horizonte === "1m"
+    estado.horizonte ===
+    "1m"
   ) {
     return 60;
   }
 
   if (
-    estado.horizonte === "5m"
+    estado.horizonte ===
+    "5m"
   ) {
     return 300;
   }
@@ -2436,37 +2611,38 @@ function iniciarCuentaRegresiva(
       ? obtenerSegundosHorizonte()
       : 10;
 
-  interfaz.cuentaRegresiva.textContent =
-    String(segundos);
+  establecerTexto(
+    interfaz.cuentaRegresiva,
+    segundos
+  );
 
   temporizadorCuentaRegresiva =
     setInterval(
       () => {
         segundos--;
 
-        interfaz.cuentaRegresiva.textContent =
-          segundos >= 0
-            ? String(segundos)
-            : "0";
+        establecerTexto(
+          interfaz.cuentaRegresiva,
+          Math.max(
+            0,
+            segundos
+          )
+        );
 
         if (
           [
-            10,
-            9,
-            8,
-            7,
-            6,
             5,
-            4,
             3,
             2,
-            1,
-            0
-          ].includes(segundos)
-        ) {
-          asistenteVoz.anunciarConteo(
+            1
+          ].includes(
             segundos
-          );
+          )
+        ) {
+          asistenteVoz
+            .anunciarConteo(
+              segundos
+            );
         }
 
         if (
@@ -2495,7 +2671,7 @@ function detenerCuentaRegresiva() {
 
 
 /* =====================================================
-26. CÁPSULA
+29. CÁPSULA
 ===================================================== */
 
 function mostrarCapsula({
@@ -2507,32 +2683,47 @@ function mostrarCapsula({
 }) {
   ocultarCapsula();
 
+  if (
+    !interfaz.capsulaSenal
+  ) {
+    return;
+  }
+
   interfaz.capsulaSenal.className =
     `capsula-senal ${tipo}`;
 
-  interfaz.estadoCapsula.textContent =
-    estadoTexto;
-
-  interfaz.valorCapsula.textContent =
-    valor;
-
-  interfaz.detalleCapsula.textContent =
-    detalle;
-
-  interfaz.capsulaSenal.setAttribute(
-    "aria-hidden",
-    "false"
+  establecerTexto(
+    interfaz.estadoCapsula,
+    estadoTexto
   );
 
-  document.body.classList.add(
-    "capsula-abierta"
+  establecerTexto(
+    interfaz.valorCapsula,
+    valor
   );
+
+  establecerTexto(
+    interfaz.detalleCapsula,
+    detalle
+  );
+
+  interfaz.capsulaSenal
+    .setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+  document.body
+    .classList.add(
+      "capsula-abierta"
+    );
 
   requestAnimationFrame(
     () => {
-      interfaz.capsulaSenal.classList.add(
-        "visible"
-      );
+      interfaz.capsulaSenal
+        .classList.add(
+          "visible"
+        );
     }
   );
 
@@ -2552,39 +2743,52 @@ function ocultarCapsula() {
       temporizadorCapsula
     );
 
-    temporizadorCapsula = null;
+    temporizadorCapsula =
+      null;
   }
 
-  interfaz.capsulaSenal.classList.remove(
-    "visible"
-  );
+  interfaz.capsulaSenal
+    ?.classList.remove(
+      "visible"
+    );
 
-  interfaz.capsulaSenal.setAttribute(
-    "aria-hidden",
-    "true"
-  );
+  interfaz.capsulaSenal
+    ?.setAttribute(
+      "aria-hidden",
+      "true"
+    );
 
-  document.body.classList.remove(
-    "capsula-abierta"
-  );
+  document.body
+    .classList.remove(
+      "capsula-abierta"
+    );
 }
 
 
 /* =====================================================
-27. HISTORIAL
+30. HISTORIAL
 ===================================================== */
 
 function agregarHistorial(
   resultado
 ) {
   estado.historial.unshift({
-    resultado,
+    hora:
+      obtenerHora(),
 
     mercado:
       estado.mercado,
 
-    hora:
-      obtenerHora()
+    estrategia:
+      resultado.nombreEstrategia,
+
+    valor:
+      obtenerValorVisual(
+        resultado
+      ),
+
+    puntaje:
+      resultado.puntaje
   });
 
   estado.historial =
@@ -2593,11 +2797,17 @@ function agregarHistorial(
       CONFIGURACION.maximoHistorial
     );
 
-  actualizarHistorial();
+  mostrarHistorial();
 }
 
 
-function actualizarHistorial() {
+function mostrarHistorial() {
+  if (
+    !interfaz.historialSenales
+  ) {
+    return;
+  }
+
   interfaz.historialSenales.innerHTML =
     "";
 
@@ -2623,115 +2833,42 @@ function actualizarHistorial() {
       articulo.innerHTML = `
         <strong>
           ${registro.hora} ·
-          ${obtenerValorVisual(
-            registro.resultado
-          )} ·
-          ${registro.resultado.puntaje}/100
+          ${registro.valor} ·
+          ${registro.puntaje}/100
         </strong>
 
         <p>
           ${registro.mercado} ·
-          ${registro.resultado.nombreEstrategia}
+          ${registro.estrategia}
         </p>
       `;
 
-      interfaz.historialSenales.appendChild(
-        articulo
-      );
+      interfaz.historialSenales
+        .appendChild(
+          articulo
+        );
     }
   );
 }
 
 
 /* =====================================================
-28. ESTADÍSTICAS
-===================================================== */
-
-function actualizarEstadisticas(
-  acierto
-) {
-  estado.estadisticas.intentos++;
-
-  if (acierto) {
-    estado.estadisticas.aciertos++;
-    estado.estadisticas.racha++;
-  } else {
-    estado.estadisticas.fallos++;
-    estado.estadisticas.racha = 0;
-  }
-
-  mostrarEstadisticas();
-}
-
-
-function mostrarEstadisticas() {
-  const datos =
-    estado.estadisticas;
-
-  const precision =
-    datos.intentos > 0
-      ? (
-          datos.aciertos /
-          datos.intentos
-        ) * 100
-      : null;
-
-  interfaz.estadisticaIntentos.textContent =
-    String(datos.intentos);
-
-  interfaz.estadisticaAciertos.textContent =
-    String(datos.aciertos);
-
-  interfaz.estadisticaFallos.textContent =
-    String(datos.fallos);
-
-  interfaz.estadisticaPrecision.textContent =
-    precision === null
-      ? "NO DATA"
-      : `${precision.toFixed(1)}%`;
-
-  interfaz.estadisticaRacha.textContent =
-    String(datos.racha);
-
-  interfaz.precisionObservada.textContent =
-    datos.intentos === 0
-      ? "0 / 20 TESTS"
-      : `${datos.aciertos} / ${datos.intentos} TESTS`;
-}
-
-
-/* =====================================================
-29. VOZ
+31. VOZ
 ===================================================== */
 
 async function cargarSelectorVoces() {
-  const voces =
-    await asistenteVoz.esperarVoces();
-
-  interfaz.selectorVoz.innerHTML =
-    "";
-
   if (
-    voces.length === 0
+    !interfaz.selectorVoz
   ) {
-    const opcion =
-      document.createElement(
-        "option"
-      );
-
-    opcion.textContent =
-      "Voz predeterminada";
-
-    interfaz.selectorVoz.appendChild(
-      opcion
-    );
-
     return;
   }
 
-  const seleccionada =
-    asistenteVoz
-      .obtenerVozSeleccionada();
+  const voces =
+    await asistenteVoz
+      .esperarVoces();
+
+  interfaz.selectorVoz.innerHTML =
+    "";
 
   voces.forEach(
     (voz) => {
@@ -2746,25 +2883,22 @@ async function cargarSelectorVoces() {
       opcion.textContent =
         `${voz.name} · ${voz.lang}`;
 
-      if (
-        seleccionada &&
-        voz.name ===
-          seleccionada.name &&
-        voz.lang ===
-          seleccionada.lang
-      ) {
-        opcion.selected = true;
-      }
-
-      interfaz.selectorVoz.appendChild(
-        opcion
-      );
+      interfaz.selectorVoz
+        .appendChild(
+          opcion
+        );
     }
   );
 }
 
 
 function actualizarBotonVoz() {
+  if (
+    !interfaz.botonVoz
+  ) {
+    return;
+  }
+
   const activa =
     asistenteVoz.estaActiva();
 
@@ -2773,40 +2907,32 @@ function actualizarBotonVoz() {
       ? "🔊"
       : "🔇";
 
-  interfaz.botonVoz.classList.toggle(
-    "voz-activa",
-    activa
-  );
-
-  interfaz.botonVoz.setAttribute(
-    "aria-pressed",
-    String(activa)
-  );
+  interfaz.botonVoz
+    .classList.toggle(
+      "voz-activa",
+      activa
+    );
 }
 
 
 /* =====================================================
-30. CONFIGURACIÓN
+32. CAMBIOS DE CONFIGURACIÓN
 ===================================================== */
 
 function cambiarEstrategia() {
-  if (
-    estado.motorEncendido
-  ) {
-    return;
-  }
-
   estado.estrategia =
-    interfaz.selectorEstrategia.value;
+    interfaz.selectorEstrategia
+      ?.value ||
+    "rise_fall";
 
-  estado.senalActiva = null;
-
-  monitorOportunidades.establecerContexto({
-    estrategia:
-      estado.estrategia
-  });
+  monitorOportunidades
+    .establecerContexto({
+      estrategia:
+        estado.estrategia
+    });
 
   mostrarEstadoInicialSenal();
+  mostrarEstadisticas();
 
   registrarActividad(
     `Estrategia seleccionada: ${estado.estrategia}.`
@@ -2815,19 +2941,18 @@ function cambiarEstrategia() {
 
 
 function cambiarModo() {
-  if (
-    estado.motorEncendido
-  ) {
-    return;
-  }
-
   estado.modo =
-    interfaz.selectorModo.value;
+    interfaz.selectorModo
+      ?.value ||
+    "fast";
 
-  monitorOportunidades.establecerContexto({
-    modo:
-      estado.modo
-  });
+  monitorOportunidades
+    .establecerContexto({
+      modo:
+        estado.modo
+    });
+
+  mostrarEstadisticas();
 
   registrarActividad(
     `Modo seleccionado: ${estado.modo}.`
@@ -2836,19 +2961,18 @@ function cambiarModo() {
 
 
 function cambiarHorizonte() {
-  if (
-    estado.motorEncendido
-  ) {
-    return;
-  }
-
   estado.horizonte =
-    interfaz.selectorHorizonte.value;
+    interfaz.selectorHorizonte
+      ?.value ||
+    "10s";
 
-  monitorOportunidades.establecerContexto({
-    horizonte:
-      estado.horizonte
-  });
+  monitorOportunidades
+    .establecerContexto({
+      horizonte:
+        estado.horizonte
+    });
+
+  mostrarEstadisticas();
 
   registrarActividad(
     `Horizonte seleccionado: ${estado.horizonte}.`
@@ -2857,7 +2981,7 @@ function cambiarHorizonte() {
 
 
 /* =====================================================
-31. EVENTOS DE DERIV
+33. EVENTOS DERIV
 ===================================================== */
 
 function configurarEventosDeriv() {
@@ -2869,13 +2993,13 @@ function configurarEventosDeriv() {
         datos.texto
       );
 
-      asistenteVoz.anunciarConexion(
-        datos.estado
-      );
+      asistenteVoz
+        .anunciarConexion(
+          datos.estado
+        );
 
       registrarActividad(
         `Estado de conexión: ${datos.texto}.`,
-
         datos.estado === "live"
           ? "exito"
           : "normal"
@@ -2883,12 +3007,10 @@ function configurarEventosDeriv() {
     }
   );
 
-
   derivAPI.al(
     "tick",
     procesarTick
   );
-
 
   derivAPI.al(
     "error",
@@ -2899,7 +3021,6 @@ function configurarEventosDeriv() {
       );
     }
   );
-
 
   derivAPI.al(
     "diagnostico",
@@ -2914,7 +3035,7 @@ function configurarEventosDeriv() {
 
 
 /* =====================================================
-32. EVENTOS DEL MONITOR
+34. EVENTOS MONITOR
 ===================================================== */
 
 function configurarEventosMonitor() {
@@ -2923,30 +3044,30 @@ function configurarEventosMonitor() {
     manejarEstadoMonitor
   );
 
-
   monitorOportunidades.al(
     "prepare",
     manejarPrepare
   );
 
+  monitorOportunidades.al(
+    "revalidando",
+    manejarRevalidacion
+  );
 
   monitorOportunidades.al(
     "confirmado",
     manejarConfirmacion
   );
 
-
   monitorOportunidades.al(
     "cancelado",
     manejarCancelacion
   );
 
-
   monitorOportunidades.al(
     "resultado",
     manejarResultado
   );
-
 
   monitorOportunidades.al(
     "diagnostico",
@@ -2961,240 +3082,255 @@ function configurarEventosMonitor() {
 
 
 /* =====================================================
-33. EVENTOS DE INTERFAZ
+35. EVENTOS DE INTERFAZ
 ===================================================== */
 
 function configurarEventosInterfaz() {
-  interfaz.botonConectar.addEventListener(
-    "click",
-    conectar
-  );
+  interfaz.botonConectar
+    ?.addEventListener(
+      "click",
+      conectar
+    );
 
+  interfaz.botonDesconectar
+    ?.addEventListener(
+      "click",
+      desconectar
+    );
 
-  interfaz.botonDesconectar.addEventListener(
-    "click",
-    desconectar
-  );
+  interfaz.botonEncenderMotor
+    ?.addEventListener(
+      "click",
+      alternarMotor
+    );
 
+  interfaz.botonPrediccion
+    ?.addEventListener(
+      "click",
+      ejecutarAnalisisManual
+    );
 
-  interfaz.botonEncenderMotor.addEventListener(
-    "click",
-    alternarMotor
-  );
+  interfaz.botonAbrirMercados
+    ?.addEventListener(
+      "click",
+      abrirMercados
+    );
 
+  interfaz.botonCerrarMercados
+    ?.addEventListener(
+      "click",
+      cerrarMercados
+    );
 
-  interfaz.botonPrediccion.addEventListener(
-    "click",
-    () => {
-      analizarMercado(true);
+  interfaz.selectorEstrategia
+    ?.addEventListener(
+      "change",
+      cambiarEstrategia
+    );
 
-      registrarActividad(
-        "Análisis manual solicitado."
-      );
-    }
-  );
+  interfaz.selectorModo
+    ?.addEventListener(
+      "change",
+      cambiarModo
+    );
 
+  interfaz.selectorHorizonte
+    ?.addEventListener(
+      "change",
+      cambiarHorizonte
+    );
 
-  interfaz.botonAbrirMercados.addEventListener(
-    "click",
-    abrirMercados
-  );
-
-
-  interfaz.botonCerrarMercados.addEventListener(
-    "click",
-    cerrarMercados
-  );
-
-
-  interfaz.selectorEstrategia.addEventListener(
-    "change",
-    cambiarEstrategia
-  );
-
-
-  interfaz.selectorModo.addEventListener(
-    "change",
-    cambiarModo
-  );
-
-
-  interfaz.selectorHorizonte.addEventListener(
-    "change",
-    cambiarHorizonte
-  );
-
-
-  interfaz.botonCancelarMonitoreo.addEventListener(
-    "click",
-    () => {
-      monitorOportunidades.cancelarOportunidad(
-        "Oportunidad cancelada manualmente."
-      );
-    }
-  );
-
-
-  interfaz.botonVoz.addEventListener(
-    "click",
-    () => {
-      asistenteVoz.alternar();
-
-      actualizarBotonVoz();
-    }
-  );
-
-
-  interfaz.selectorVoz.addEventListener(
-    "change",
-    () => {
-      asistenteVoz.seleccionarVoz(
-        interfaz.selectorVoz.value
-      );
-    }
-  );
-
-
-  interfaz.velocidadVoz.addEventListener(
-    "input",
-    () => {
-      const valor =
-        Number(
-          interfaz.velocidadVoz.value
-        );
-
-      asistenteVoz.establecerVelocidad(
-        valor
-      );
-
-      interfaz.valorVelocidad.textContent =
-        `${valor.toFixed(2)}x`;
-    }
-  );
-
-
-  interfaz.tonoVoz.addEventListener(
-    "input",
-    () => {
-      const valor =
-        Number(
-          interfaz.tonoVoz.value
-        );
-
-      asistenteVoz.establecerTono(
-        valor
-      );
-
-      interfaz.valorTono.textContent =
-        valor.toFixed(1);
-    }
-  );
-
-
-  interfaz.volumenVoz.addEventListener(
-    "input",
-    () => {
-      const valor =
-        Number(
-          interfaz.volumenVoz.value
-        );
-
-      asistenteVoz.establecerVolumen(
-        valor
-      );
-
-      interfaz.valorVolumen.textContent =
-        `${Math.round(
-          valor * 100
-        )}%`;
-    }
-  );
-
-
-  interfaz.botonProbarVoz.addEventListener(
-    "click",
-    () => {
-      asistenteVoz.probarVoz();
-    }
-  );
-
-
-  interfaz.botonLimpiarHistorial.addEventListener(
-    "click",
-    () => {
-      estado.historial = [];
-
-      actualizarHistorial();
-    }
-  );
-
-
-  interfaz.botonLimpiarRegistro.addEventListener(
-    "click",
-    () => {
-      interfaz.registroActividad.innerHTML =
-        "";
-
-      registrarActividad(
-        "Registro limpiado."
-      );
-    }
-  );
-
-
-  interfaz.botonReiniciarEstadisticas.addEventListener(
-    "click",
-    () => {
-      estado.estadisticas = {
-        intentos: 0,
-        aciertos: 0,
-        fallos: 0,
-        racha: 0
-      };
-
-      mostrarEstadisticas();
-
-      registrarActividad(
-        "Estadísticas reiniciadas."
-      );
-    }
-  );
-
-
-  interfaz.botonNuevaSenal.addEventListener(
-    "click",
-    () => {
-      mostrarEstadoInicialSenal();
-
-      if (
-        estado.motorEncendido
-      ) {
-        monitorOportunidades.iniciar();
+  interfaz.botonCancelarMonitoreo
+    ?.addEventListener(
+      "click",
+      () => {
+        monitorOportunidades
+          .cancelarOportunidad(
+            "Oportunidad cancelada manualmente."
+          );
       }
-    }
-  );
+    );
+
+  interfaz.botonVoz
+    ?.addEventListener(
+      "click",
+      () => {
+        asistenteVoz.alternar();
+
+        actualizarBotonVoz();
+      }
+    );
+
+  interfaz.selectorVoz
+    ?.addEventListener(
+      "change",
+      () => {
+        asistenteVoz
+          .seleccionarVoz(
+            interfaz.selectorVoz
+              .value
+          );
+      }
+    );
+
+  interfaz.velocidadVoz
+    ?.addEventListener(
+      "input",
+      () => {
+        const valor =
+          Number(
+            interfaz.velocidadVoz
+              .value
+          );
+
+        asistenteVoz
+          .establecerVelocidad(
+            valor
+          );
+
+        establecerTexto(
+          interfaz.valorVelocidad,
+          `${valor.toFixed(2)}x`
+        );
+      }
+    );
+
+  interfaz.tonoVoz
+    ?.addEventListener(
+      "input",
+      () => {
+        const valor =
+          Number(
+            interfaz.tonoVoz
+              .value
+          );
+
+        asistenteVoz
+          .establecerTono(
+            valor
+          );
+
+        establecerTexto(
+          interfaz.valorTono,
+          valor.toFixed(1)
+        );
+      }
+    );
+
+  interfaz.volumenVoz
+    ?.addEventListener(
+      "input",
+      () => {
+        const valor =
+          Number(
+            interfaz.volumenVoz
+              .value
+          );
+
+        asistenteVoz
+          .establecerVolumen(
+            valor
+          );
+
+        establecerTexto(
+          interfaz.valorVolumen,
+          `${Math.round(
+            valor * 100
+          )}%`
+        );
+      }
+    );
+
+  interfaz.botonProbarVoz
+    ?.addEventListener(
+      "click",
+      () => {
+        asistenteVoz
+          .probarVoz();
+      }
+    );
+
+  interfaz.botonLimpiarHistorial
+    ?.addEventListener(
+      "click",
+      () => {
+        estado.historial = [];
+
+        mostrarHistorial();
+      }
+    );
+
+  interfaz.botonLimpiarRegistro
+    ?.addEventListener(
+      "click",
+      () => {
+        if (
+          interfaz.registroActividad
+        ) {
+          interfaz.registroActividad
+            .innerHTML = "";
+        }
+      }
+    );
+
+  interfaz.botonReiniciarEstadisticas
+    ?.addEventListener(
+      "click",
+      () => {
+        estado.estadisticas[
+          obtenerClaveEstadistica()
+        ] = {
+          intentos: 0,
+          aciertos: 0,
+          fallos: 0,
+          racha: 0
+        };
+
+        mostrarEstadisticas();
+
+        registrarActividad(
+          "Estadísticas reiniciadas."
+        );
+      }
+    );
+
+  interfaz.botonNuevaSenal
+    ?.addEventListener(
+      "click",
+      () => {
+        mostrarEstadoInicialSenal();
+
+        if (
+          estado.motorEncendido
+        ) {
+          monitorOportunidades
+            .iniciar();
+        }
+      }
+    );
 }
 
 
 /* =====================================================
-34. SERVICE WORKER
+36. SERVICE WORKER
 ===================================================== */
 
 async function registrarServiceWorker() {
   if (
-    !("serviceWorker" in navigator)
+    !(
+      "serviceWorker" in
+      navigator
+    )
   ) {
     return;
   }
 
   try {
-    await navigator.serviceWorker.register(
-      "./service-worker.js"
-    );
-
-    registrarActividad(
-      "Service Worker registrado."
-    );
+    await navigator
+      .serviceWorker
+      .register(
+        "./service-worker.js"
+      );
   } catch (error) {
     registrarActividad(
       "No fue posible registrar el Service Worker.",
@@ -3205,7 +3341,7 @@ async function registrarServiceWorker() {
 
 
 /* =====================================================
-35. INICIAR APLICACIÓN
+37. INICIAR
 ===================================================== */
 
 async function iniciarAplicacion() {
@@ -3217,14 +3353,33 @@ async function iniciarAplicacion() {
   estado.mercado =
     mercado.nombre;
 
-  interfaz.mercadoSeleccionado.textContent =
-    mercado.nombre;
+  establecerTexto(
+    interfaz.mercadoSeleccionado,
+    mercado.nombre
+  );
 
-  interfaz.simboloSeleccionado.textContent =
-    mercado.simbolo;
+  establecerTexto(
+    interfaz.simboloSeleccionado,
+    mercado.simbolo
+  );
 
-  interfaz.nombreMercado.textContent =
-    mercado.nombre;
+  establecerTexto(
+    interfaz.nombreMercado,
+    mercado.nombre
+  );
+
+  const opcionMatches =
+    interfaz.selectorEstrategia
+      ?.querySelector(
+        'option[value="match"]'
+      );
+
+  if (
+    opcionMatches
+  ) {
+    opcionMatches.textContent =
+      "Matches";
+  }
 
   actualizarEstadoConexion(
     "offline",
@@ -3234,7 +3389,7 @@ async function iniciarAplicacion() {
   actualizarEstadoMotor();
   limpiarDatosMercado();
   mostrarEstadisticas();
-  actualizarHistorial();
+  mostrarHistorial();
 
   configurarEventosDeriv();
   configurarEventosMonitor();
@@ -3246,38 +3401,39 @@ async function iniciarAplicacion() {
 
   actualizarBotonVoz();
 
-  monitorOportunidades.establecerContexto({
-    simbolo:
-      estado.simbolo,
+  monitorOportunidades
+    .establecerContexto({
+      simbolo:
+        estado.simbolo,
 
-    mercado:
-      estado.mercado,
+      mercado:
+        estado.mercado,
 
-    estrategia:
-      estado.estrategia,
+      estrategia:
+        estado.estrategia,
 
-    modo:
-      estado.modo,
+      modo:
+        estado.modo,
 
-    horizonte:
-      estado.horizonte
-  });
+      horizonte:
+        estado.horizonte
+    });
 
   await registrarServiceWorker();
 
   registrarActividad(
-    `Trading Analyst V${CONFIGURACION.version} iniciado.`,
+    `Trading Analyst Pro MR ${CONFIGURACION.version} iniciado.`,
     "exito"
   );
 
   registrarActividad(
-    "Seleccione el mercado, la estrategia y presione CONNECT."
+    "Seleccione mercado y estrategia, conecte y encienda el motor."
   );
 }
 
 
 /* =====================================================
-36. CIERRE
+38. CIERRE
 ===================================================== */
 
 window.addEventListener(
@@ -3286,9 +3442,14 @@ window.addEventListener(
     detenerCuentaRegresiva();
     ocultarCapsula();
 
-    monitorOportunidades.destruir();
-    asistenteVoz.destruir();
-    derivAPI.desconectar();
+    monitorOportunidades
+      .destruir();
+
+    asistenteVoz
+      .destruir();
+
+    derivAPI
+      .desconectar();
   }
 );
 
@@ -3309,6 +3470,6 @@ if (
 /*
 =========================================================
 FIN DEL ARCHIVO js/app.js
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 =========================================================
 */
