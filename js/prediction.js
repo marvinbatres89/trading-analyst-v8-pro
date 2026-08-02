@@ -1,19 +1,17 @@
 /*
 =========================================================
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 Archivo: js/prediction.js
 
-VERSIÓN:
-Motor de puntuación técnica progresiva.
-
 Responsabilidad:
-- Recibir el resumen de indicators.js.
-- Calcular Signal Score.
-- Combinar tendencia, RSI, momentum, volatilidad,
-  flujo de ticks, mercado lateral y Fibonacci.
-- Evaluar Rise/Fall, Even/Odd, Over/Under y Match.
-- Entregar resultados al monitor sin lanzar señales
-  directamente.
+- Calcular el Signal Score.
+- Aplicar reglas independientes por estrategia.
+- Generar oportunidades para:
+  Rise / Fall
+  Even / Odd
+  Over / Under
+  Matches
+- Entregar las señales al monitor.
 =========================================================
 */
 
@@ -24,57 +22,71 @@ import {
 
 
 /* =====================================================
-1. CONFIGURACIÓN GENERAL
+1. CONFIGURACIÓN POR ESTRATEGIA
 ===================================================== */
 
-export const CONFIGURACION_PREDICCION =
-  Object.freeze({
-    puntajeCandidata: 58,
-    puntajePrepare: 68,
+export const CONFIGURACION_PREDICCION = Object.freeze({
+  rise_fall: {
+    puntajeCandidata: 56,
+    puntajePrepare: 67,
     puntajeConfirmado: 80,
-    puntajeMuyFuerte: 90,
+    diferenciaMinima: 14,
+    maximoPuntaje: 100
+  },
 
-    diferenciaMinimaRiseFall: 16,
-    diferenciaMinimaDigitos: 14,
+  even_odd: {
+    puntajeCandidata: 54,
+    puntajePrepare: 64,
+    puntajeConfirmado: 74,
+    diferenciaMinima: 10,
+    minimoDigitos: 20,
+    maximoPuntaje: 86
+  },
 
-    minimoDigitosFast: 20,
-    minimoDigitosComplete: 40,
+  over_under: {
+    puntajeCandidata: 54,
+    puntajePrepare: 64,
+    puntajeConfirmado: 74,
+    diferenciaMinima: 10,
+    minimoDigitos: 20,
+    maximoPuntaje: 86
+  },
 
-    maximoPuntajeRiseFall: 100,
-    maximoPuntajeEvenOdd: 84,
-    maximoPuntajeOverUnder: 84,
-    maximoPuntajeMatch: 78,
-
-    penalizacionMercadoLateral: 18,
-    penalizacionVolatilidadMuyAlta: 16,
-    penalizacionContradiccion: 12
-  });
+  match: {
+    puntajeCandidata: 52,
+    puntajePrepare: 62,
+    puntajeConfirmado: 70,
+    minimoDigitos: 30,
+    frecuenciaMinima: 4,
+    porcentajeMinimo: 15,
+    ventanaEvaluacionTicks: 5,
+    maximoPuntaje: 82
+  }
+});
 
 
 /* =====================================================
-2. NOMBRES
+2. NOMBRES VISIBLES Y DE VOZ
 ===================================================== */
 
-export const NOMBRES_ESTRATEGIAS =
-  Object.freeze({
-    rise_fall: "Rise / Fall",
-    even_odd: "Even / Odd",
-    over_under: "Over / Under",
-    match: "Match"
-  });
+export const NOMBRES_ESTRATEGIAS = Object.freeze({
+  rise_fall: "Rise / Fall",
+  even_odd: "Even / Odd",
+  over_under: "Over / Under",
+  match: "Matches"
+});
 
 
-export const NOMBRES_VOZ =
-  Object.freeze({
-    RISE: "Sube",
-    FALL: "Baja",
-    EVEN: "Par",
-    ODD: "Impar",
-    OVER: "Más de cuatro",
-    UNDER: "Menos de cinco",
-    MATCH: "Coincidencia",
-    WAIT: "Esperar"
-  });
+export const NOMBRES_VOZ = Object.freeze({
+  RISE: "Sube",
+  FALL: "Baja",
+  EVEN: "Par",
+  ODD: "Impar",
+  OVER: "Mayor",
+  UNDER: "Menor",
+  MATCH: "Coincidencia",
+  WAIT: "Esperar"
+});
 
 
 /* =====================================================
@@ -94,51 +106,32 @@ function numeroSeguro(
 }
 
 
-function redondear(
-  valor,
-  decimales = 2
+function agregarTexto(
+  lista,
+  texto
 ) {
-  const factor =
-    10 ** decimales;
+  if (
+    Array.isArray(lista) &&
+    typeof texto === "string" &&
+    texto.trim()
+  ) {
+    lista.push(
+      texto.trim()
+    );
+  }
+}
 
+
+function obtenerConfiguracion(
+  estrategia
+) {
   return (
-    Math.round(
-      numeroSeguro(valor) *
-      factor
-    ) / factor
+    CONFIGURACION_PREDICCION[
+      estrategia
+    ] ||
+    CONFIGURACION_PREDICCION
+      .rise_fall
   );
-}
-
-
-function agregarRazon(
-  lista,
-  texto
-) {
-  if (
-    Array.isArray(lista) &&
-    typeof texto === "string" &&
-    texto.trim()
-  ) {
-    lista.push(
-      texto.trim()
-    );
-  }
-}
-
-
-function agregarAdvertencia(
-  lista,
-  texto
-) {
-  if (
-    Array.isArray(lista) &&
-    typeof texto === "string" &&
-    texto.trim()
-  ) {
-    lista.push(
-      texto.trim()
-    );
-  }
 }
 
 
@@ -156,7 +149,7 @@ function crearResultadoBase({
   componentes = {},
   metadata = {}
 }) {
-  const puntajeLimitado =
+  const puntajeFinal =
     Math.round(
       limitarNumero(
         numeroSeguro(puntaje),
@@ -181,7 +174,7 @@ function crearResultadoBase({
       ] || direccion,
 
     puntaje:
-      puntajeLimitado,
+      puntajeFinal,
 
     estado,
 
@@ -236,8 +229,14 @@ export function crearResultadoMonitoreo(
 ===================================================== */
 
 export function clasificarPuntaje(
-  puntaje
+  puntaje,
+  estrategia = "rise_fall"
 ) {
+  const configuracion =
+    obtenerConfiguracion(
+      estrategia
+    );
+
   const valor =
     limitarNumero(
       numeroSeguro(puntaje),
@@ -247,33 +246,20 @@ export function clasificarPuntaje(
 
   if (
     valor >=
-    CONFIGURACION_PREDICCION
-      .puntajeMuyFuerte
-  ) {
-    return {
-      nivel: "VERY STRONG",
-      descripcion:
-        "Coincidencia técnica muy fuerte.",
-      prioridad: 5
-    };
-  }
-
-  if (
-    valor >=
-    CONFIGURACION_PREDICCION
+    configuracion
       .puntajeConfirmado
   ) {
     return {
       nivel: "STRONG",
       descripcion:
-        "La configuración puede ser validada por el monitor.",
+        "La señal puede pasar a revalidación.",
       prioridad: 4
     };
   }
 
   if (
     valor >=
-    CONFIGURACION_PREDICCION
+    configuracion
       .puntajePrepare
   ) {
     return {
@@ -286,7 +272,7 @@ export function clasificarPuntaje(
 
   if (
     valor >=
-    CONFIGURACION_PREDICCION
+    configuracion
       .puntajeCandidata
   ) {
     return {
@@ -297,11 +283,11 @@ export function clasificarPuntaje(
     };
   }
 
-  if (valor >= 45) {
+  if (valor >= 40) {
     return {
       nivel: "MONITORING",
       descripcion:
-        "Señal insuficiente para preparar una entrada.",
+        "La señal todavía no tiene suficiente fuerza.",
       prioridad: 1
     };
   }
@@ -320,31 +306,27 @@ export function clasificarPuntaje(
 ===================================================== */
 
 function obtenerEstadoPreliminar(
+  estrategia,
   puntaje
 ) {
-  if (
-    puntaje >=
-    CONFIGURACION_PREDICCION
-      .puntajeConfirmado
-  ) {
-    /*
-    El monitor será quien confirme después de varios ciclos.
-    */
-    return "PREPARE";
-  }
+  const clasificacion =
+    clasificarPuntaje(
+      puntaje,
+      estrategia
+    );
 
   if (
-    puntaje >=
-    CONFIGURACION_PREDICCION
-      .puntajePrepare
+    clasificacion.nivel ===
+      "STRONG" ||
+    clasificacion.nivel ===
+      "PREPARE"
   ) {
     return "PREPARE";
   }
 
   if (
-    puntaje >=
-    CONFIGURACION_PREDICCION
-      .puntajeCandidata
+    clasificacion.nivel ===
+    "CANDIDATE"
   ) {
     return "CANDIDATE";
   }
@@ -354,668 +336,7 @@ function obtenerEstadoPreliminar(
 
 
 /* =====================================================
-7. PUNTOS DE TENDENCIA
-===================================================== */
-
-function evaluarTendencia(
-  tendencia
-) {
-  const resultado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: []
-  };
-
-  if (!tendencia) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "La tendencia todavía no está disponible."
-    );
-
-    return resultado;
-  }
-
-  if (
-    tendencia.direccion ===
-    "ALCISTA"
-  ) {
-    const puntos =
-      16 +
-      numeroSeguro(
-        tendencia.fuerza
-      ) * 4;
-
-    resultado.bullish +=
-      puntos;
-
-    agregarRazon(
-      resultado.razonesBullish,
-      `La tendencia reciente es alcista con fuerza ${tendencia.fuerza}.`
-    );
-  }
-
-  if (
-    tendencia.direccion ===
-    "BAJISTA"
-  ) {
-    const puntos =
-      16 +
-      numeroSeguro(
-        tendencia.fuerza
-      ) * 4;
-
-    resultado.bearish +=
-      puntos;
-
-    agregarRazon(
-      resultado.razonesBearish,
-      `La tendencia reciente es bajista con fuerza ${tendencia.fuerza}.`
-    );
-  }
-
-  if (
-    tendencia.direccion ===
-      "LATERAL" ||
-    tendencia.lateral
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "La tendencia todavía presenta comportamiento lateral."
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-8. PUNTOS DE RSI
-===================================================== */
-
-function evaluarRSI(
-  rsi,
-  interpretacionRsi
-) {
-  const resultado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: []
-  };
-
-  if (
-    !Number.isFinite(rsi) ||
-    !interpretacionRsi
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "Todavía no existen suficientes datos para interpretar el RSI."
-    );
-
-    return resultado;
-  }
-
-  const fuerza =
-    numeroSeguro(
-      interpretacionRsi.fuerza
-    );
-
-  if (
-    interpretacionRsi.direccion ===
-    "BULLISH"
-  ) {
-    resultado.bullish +=
-      10 +
-      fuerza * 4;
-
-    agregarRazon(
-      resultado.razonesBullish,
-      `RSI ${rsi.toFixed(1)} en ${String(
-        interpretacionRsi.zona
-      ).toLowerCase()}.`
-    );
-  }
-
-  if (
-    interpretacionRsi.direccion ===
-    "BEARISH"
-  ) {
-    resultado.bearish +=
-      10 +
-      fuerza * 4;
-
-    agregarRazon(
-      resultado.razonesBearish,
-      `RSI ${rsi.toFixed(1)} en ${String(
-        interpretacionRsi.zona
-      ).toLowerCase()}.`
-    );
-  }
-
-  if (
-    interpretacionRsi.direccion ===
-    "NEUTRAL"
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      `RSI ${rsi.toFixed(1)} en zona neutral.`
-    );
-  }
-
-  /*
-  RSI extremo: puede representar agotamiento.
-  Se reduce ligeramente la presión de continuación.
-  */
-  if (rsi >= 78) {
-    resultado.bullish -= 5;
-
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El RSI se encuentra muy alto y podría existir agotamiento alcista."
-    );
-  }
-
-  if (rsi <= 22) {
-    resultado.bearish -= 5;
-
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El RSI se encuentra muy bajo y podría existir agotamiento bajista."
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-9. PUNTOS DE MOMENTUM
-===================================================== */
-
-function evaluarMomentum(
-  momentum
-) {
-  const resultado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: []
-  };
-
-  if (!momentum) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El momentum todavía no está disponible."
-    );
-
-    return resultado;
-  }
-
-  const fuerza =
-    numeroSeguro(
-      momentum.fuerza
-    );
-
-  if (
-    momentum.direccion ===
-    "POSITIVO"
-  ) {
-    resultado.bullish +=
-      12 +
-      fuerza * 4;
-
-    agregarRazon(
-      resultado.razonesBullish,
-      `El momentum es positivo: ${numeroSeguro(
-        momentum.porcentaje
-      ).toFixed(4)}%.`
-    );
-  }
-
-  if (
-    momentum.direccion ===
-    "NEGATIVO"
-  ) {
-    resultado.bearish +=
-      12 +
-      fuerza * 4;
-
-    agregarRazon(
-      resultado.razonesBearish,
-      `El momentum es negativo: ${numeroSeguro(
-        momentum.porcentaje
-      ).toFixed(4)}%.`
-    );
-  }
-
-  if (
-    momentum.direccion ===
-    "NEUTRAL"
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El momentum no presenta una dirección clara."
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-10. PUNTOS DEL FLUJO DE TICKS
-===================================================== */
-
-function evaluarFlujoTicks(
-  flujoCorto,
-  flujoMedio
-) {
-  const resultado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: []
-  };
-
-  if (flujoCorto) {
-    if (
-      flujoCorto.direccion ===
-      "ALCISTA"
-    ) {
-      resultado.bullish +=
-        9 +
-        numeroSeguro(
-          flujoCorto.fuerza
-        ) * 3;
-
-      agregarRazon(
-        resultado.razonesBullish,
-        `El flujo corto registra ${flujoCorto.subidas} subidas y ${flujoCorto.bajadas} bajadas.`
-      );
-    }
-
-    if (
-      flujoCorto.direccion ===
-      "BAJISTA"
-    ) {
-      resultado.bearish +=
-        9 +
-        numeroSeguro(
-          flujoCorto.fuerza
-        ) * 3;
-
-      agregarRazon(
-        resultado.razonesBearish,
-        `El flujo corto registra ${flujoCorto.bajadas} bajadas y ${flujoCorto.subidas} subidas.`
-      );
-    }
-  }
-
-  if (flujoMedio) {
-    if (
-      flujoMedio.direccion ===
-      "ALCISTA"
-    ) {
-      resultado.bullish +=
-        6 +
-        numeroSeguro(
-          flujoMedio.fuerza
-        ) * 2;
-
-      agregarRazon(
-        resultado.razonesBullish,
-        "El flujo medio también favorece la subida."
-      );
-    }
-
-    if (
-      flujoMedio.direccion ===
-      "BAJISTA"
-    ) {
-      resultado.bearish +=
-        6 +
-        numeroSeguro(
-          flujoMedio.fuerza
-        ) * 2;
-
-      agregarRazon(
-        resultado.razonesBearish,
-        "El flujo medio también favorece la bajada."
-      );
-    }
-  }
-
-  if (
-    flujoCorto &&
-    flujoMedio &&
-    flujoCorto.direccion !==
-      "NEUTRAL" &&
-    flujoMedio.direccion !==
-      "NEUTRAL" &&
-    flujoCorto.direccion !==
-      flujoMedio.direccion
-  ) {
-    resultado.bullish -=
-      CONFIGURACION_PREDICCION
-        .penalizacionContradiccion;
-
-    resultado.bearish -=
-      CONFIGURACION_PREDICCION
-        .penalizacionContradiccion;
-
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El flujo corto y el flujo medio no coinciden."
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-11. PUNTOS DE FIBONACCI
-===================================================== */
-
-function evaluarFibonacci(
-  fibonacci
-) {
-  const resultado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: []
-  };
-
-  if (
-    !fibonacci ||
-    !fibonacci.disponible
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "Fibonacci todavía no dispone de suficientes precios."
-    );
-
-    return resultado;
-  }
-
-  if (
-    !fibonacci.cercaDeNivel ||
-    !fibonacci.nivelCercano
-  ) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "El precio no está cerca de una zona Fibonacci relevante."
-    );
-
-    return resultado;
-  }
-
-  const nivel =
-    fibonacci.nivelCercano
-      .porcentaje;
-
-  let puntos = 8;
-
-  if (
-    nivel === 50 ||
-    nivel === 61.8
-  ) {
-    puntos = 14;
-  } else if (
-    nivel === 38.2 ||
-    nivel === 78.6
-  ) {
-    puntos = 11;
-  }
-
-  if (
-    fibonacci.direccionBase ===
-    "ALCISTA"
-  ) {
-    resultado.bullish +=
-      puntos;
-
-    agregarRazon(
-      resultado.razonesBullish,
-      `El precio está cerca del nivel Fibonacci ${nivel}%, posible zona de soporte.`
-    );
-  }
-
-  if (
-    fibonacci.direccionBase ===
-    "BAJISTA"
-  ) {
-    resultado.bearish +=
-      puntos;
-
-    agregarRazon(
-      resultado.razonesBearish,
-      `El precio está cerca del nivel Fibonacci ${nivel}%, posible zona de resistencia.`
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-12. VOLATILIDAD
-===================================================== */
-
-function evaluarVolatilidad(
-  volatilidad
-) {
-  const resultado = {
-    ajusteBullish: 0,
-    ajusteBearish: 0,
-    razones: [],
-    advertencias: []
-  };
-
-  if (!volatilidad) {
-    agregarAdvertencia(
-      resultado.advertencias,
-      "La volatilidad todavía no está disponible."
-    );
-
-    return resultado;
-  }
-
-  if (
-    volatilidad.nivel ===
-    "BAJA"
-  ) {
-    resultado.ajusteBullish += 3;
-    resultado.ajusteBearish += 3;
-
-    agregarRazon(
-      resultado.razones,
-      "La volatilidad se mantiene estable."
-    );
-  }
-
-  if (
-    volatilidad.nivel ===
-    "MEDIA"
-  ) {
-    resultado.ajusteBullish += 1;
-    resultado.ajusteBearish += 1;
-
-    agregarRazon(
-      resultado.razones,
-      "La volatilidad se encuentra en un nivel medio."
-    );
-  }
-
-  if (
-    volatilidad.nivel ===
-    "ALTA"
-  ) {
-    resultado.ajusteBullish -= 6;
-    resultado.ajusteBearish -= 6;
-
-    agregarAdvertencia(
-      resultado.advertencias,
-      "La volatilidad alta reduce la estabilidad de la predicción."
-    );
-  }
-
-  if (
-    volatilidad.nivel ===
-    "MUY ALTA"
-  ) {
-    resultado.ajusteBullish -=
-      CONFIGURACION_PREDICCION
-        .penalizacionVolatilidadMuyAlta;
-
-    resultado.ajusteBearish -=
-      CONFIGURACION_PREDICCION
-        .penalizacionVolatilidadMuyAlta;
-
-    agregarAdvertencia(
-      resultado.advertencias,
-      "La volatilidad muy alta impide confirmar una entrada estable."
-    );
-  }
-
-  return resultado;
-}
-
-
-/* =====================================================
-13. MERCADO LATERAL
-===================================================== */
-
-function evaluarMercadoLateral(
-  mercadoLateral
-) {
-  if (
-    !mercadoLateral ||
-    !mercadoLateral.lateral
-  ) {
-    return {
-      penalizacion: 0,
-      advertencias: []
-    };
-  }
-
-  return {
-    penalizacion:
-      CONFIGURACION_PREDICCION
-        .penalizacionMercadoLateral,
-
-    advertencias: [
-      "El mercado se encuentra lateral y reduce la calidad de la entrada."
-    ]
-  };
-}
-
-
-/* =====================================================
-14. COMBINAR EVALUACIONES
-===================================================== */
-
-function combinarEvaluacionesRiseFall(
-  evaluaciones
-) {
-  const combinado = {
-    bullish: 0,
-    bearish: 0,
-    razonesBullish: [],
-    razonesBearish: [],
-    advertencias: [],
-    componentes: {}
-  };
-
-  evaluaciones.forEach(
-    ({
-      nombre,
-      resultado
-    }) => {
-      if (!resultado) return;
-
-      combinado.bullish +=
-        numeroSeguro(
-          resultado.bullish
-        );
-
-      combinado.bearish +=
-        numeroSeguro(
-          resultado.bearish
-        );
-
-      combinado.bullish +=
-        numeroSeguro(
-          resultado.ajusteBullish
-        );
-
-      combinado.bearish +=
-        numeroSeguro(
-          resultado.ajusteBearish
-        );
-
-      if (
-        Array.isArray(
-          resultado.razonesBullish
-        )
-      ) {
-        combinado.razonesBullish.push(
-          ...resultado.razonesBullish
-        );
-      }
-
-      if (
-        Array.isArray(
-          resultado.razonesBearish
-        )
-      ) {
-        combinado.razonesBearish.push(
-          ...resultado.razonesBearish
-        );
-      }
-
-      if (
-        Array.isArray(
-          resultado.razones
-        )
-      ) {
-        combinado.razonesBullish.push(
-          ...resultado.razones
-        );
-
-        combinado.razonesBearish.push(
-          ...resultado.razones
-        );
-      }
-
-      if (
-        Array.isArray(
-          resultado.advertencias
-        )
-      ) {
-        combinado.advertencias.push(
-          ...resultado.advertencias
-        );
-      }
-
-      combinado.componentes[nombre] =
-        resultado;
-    }
-  );
-
-  return combinado;
-}
-
-
-/* =====================================================
-15. RISE / FALL
+7. RISE / FALL
 ===================================================== */
 
 export function evaluarRiseFall(
@@ -1032,193 +353,503 @@ export function evaluarRiseFall(
     );
   }
 
-  const evaluacionTendencia =
-    evaluarTendencia(
-      resumen.tendencia
+  const configuracion =
+    CONFIGURACION_PREDICCION
+      .rise_fall;
+
+  const razonesBullish = [];
+  const razonesBearish = [];
+  const advertencias = [];
+
+  let bullish = 0;
+  let bearish = 0;
+
+  const tendencia =
+    resumen.tendencia;
+
+  const momentum =
+    resumen.momentum;
+
+  const flujoCorto =
+    resumen.flujoCorto;
+
+  const flujoMedio =
+    resumen.flujoMedio;
+
+  const volatilidad =
+    resumen.volatilidad;
+
+  const fibonacci =
+    resumen.fibonacci;
+
+  const mercadoLateral =
+    resumen.mercadoLateral;
+
+  const rsi =
+    numeroSeguro(
+      resumen.rsi
     );
 
-  const evaluacionRsi =
-    evaluarRSI(
-      resumen.rsi,
-      resumen.interpretacionRsi
+  const interpretacionRsi =
+    resumen.interpretacionRsi;
+
+
+  /*
+  -------------------------------------------------------
+  TENDENCIA
+  -------------------------------------------------------
+  */
+
+  if (
+    tendencia?.direccion ===
+    "ALCISTA"
+  ) {
+    bullish +=
+      18 +
+      numeroSeguro(
+        tendencia.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBullish,
+      "La tendencia reciente es alcista."
     );
+  }
 
-  const evaluacionMomentum =
-    evaluarMomentum(
-      resumen.momentum
+  if (
+    tendencia?.direccion ===
+    "BAJISTA"
+  ) {
+    bearish +=
+      18 +
+      numeroSeguro(
+        tendencia.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBearish,
+      "La tendencia reciente es bajista."
     );
+  }
 
-  const evaluacionFlujo =
-    evaluarFlujoTicks(
-      resumen.flujoCorto,
-      resumen.flujoMedio
+  if (
+    tendencia?.lateral ||
+    tendencia?.direccion ===
+      "LATERAL"
+  ) {
+    agregarTexto(
+      advertencias,
+      "La tendencia todavía presenta comportamiento lateral."
     );
+  }
 
-  const evaluacionFibonacci =
-    evaluarFibonacci(
-      resumen.fibonacci
+
+  /*
+  -------------------------------------------------------
+  RSI
+  -------------------------------------------------------
+  */
+
+  if (
+    interpretacionRsi?.direccion ===
+    "BULLISH"
+  ) {
+    bullish +=
+      10 +
+      numeroSeguro(
+        interpretacionRsi.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBullish,
+      `RSI ${rsi.toFixed(1)} favorece presión alcista.`
     );
+  }
 
-  const evaluacionVolatilidad =
-    evaluarVolatilidad(
-      resumen.volatilidad
+  if (
+    interpretacionRsi?.direccion ===
+    "BEARISH"
+  ) {
+    bearish +=
+      10 +
+      numeroSeguro(
+        interpretacionRsi.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBearish,
+      `RSI ${rsi.toFixed(1)} favorece presión bajista.`
     );
+  }
 
-  const lateral =
-    evaluarMercadoLateral(
-      resumen.mercadoLateral
+  if (
+    interpretacionRsi?.direccion ===
+    "NEUTRAL"
+  ) {
+    agregarTexto(
+      advertencias,
+      `RSI ${rsi.toFixed(1)} en zona neutral.`
     );
+  }
 
-  const combinado =
-    combinarEvaluacionesRiseFall([
-      {
-        nombre: "tendencia",
-        resultado:
-          evaluacionTendencia
-      },
-      {
-        nombre: "rsi",
-        resultado:
-          evaluacionRsi
-      },
-      {
-        nombre: "momentum",
-        resultado:
-          evaluacionMomentum
-      },
-      {
-        nombre: "flujo",
-        resultado:
-          evaluacionFlujo
-      },
-      {
-        nombre: "fibonacci",
-        resultado:
-          evaluacionFibonacci
-      },
-      {
-        nombre: "volatilidad",
-        resultado:
-          evaluacionVolatilidad
-      }
-    ]);
+  if (rsi >= 78) {
+    bullish -= 5;
 
-  combinado.bullish -=
-    lateral.penalizacion;
+    agregarTexto(
+      advertencias,
+      "El RSI está muy alto y puede existir agotamiento alcista."
+    );
+  }
 
-  combinado.bearish -=
-    lateral.penalizacion;
+  if (rsi <= 22) {
+    bearish -= 5;
 
-  combinado.advertencias.push(
-    ...lateral.advertencias
-  );
+    agregarTexto(
+      advertencias,
+      "El RSI está muy bajo y puede existir agotamiento bajista."
+    );
+  }
 
-  combinado.bullish =
+
+  /*
+  -------------------------------------------------------
+  MOMENTUM
+  -------------------------------------------------------
+  */
+
+  if (
+    momentum?.direccion ===
+    "POSITIVO"
+  ) {
+    bullish +=
+      13 +
+      numeroSeguro(
+        momentum.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBullish,
+      "El momentum es positivo."
+    );
+  }
+
+  if (
+    momentum?.direccion ===
+    "NEGATIVO"
+  ) {
+    bearish +=
+      13 +
+      numeroSeguro(
+        momentum.fuerza
+      ) * 4;
+
+    agregarTexto(
+      razonesBearish,
+      "El momentum es negativo."
+    );
+  }
+
+  if (
+    momentum?.direccion ===
+    "NEUTRAL"
+  ) {
+    agregarTexto(
+      advertencias,
+      "El momentum no presenta una dirección clara."
+    );
+  }
+
+
+  /*
+  -------------------------------------------------------
+  FLUJO DE TICKS
+  -------------------------------------------------------
+  */
+
+  if (
+    flujoCorto?.direccion ===
+    "ALCISTA"
+  ) {
+    bullish +=
+      11 +
+      numeroSeguro(
+        flujoCorto.fuerza
+      ) * 3;
+
+    agregarTexto(
+      razonesBullish,
+      "El flujo corto de ticks favorece la subida."
+    );
+  }
+
+  if (
+    flujoCorto?.direccion ===
+    "BAJISTA"
+  ) {
+    bearish +=
+      11 +
+      numeroSeguro(
+        flujoCorto.fuerza
+      ) * 3;
+
+    agregarTexto(
+      razonesBearish,
+      "El flujo corto de ticks favorece la bajada."
+    );
+  }
+
+  if (
+    flujoMedio?.direccion ===
+    "ALCISTA"
+  ) {
+    bullish +=
+      6 +
+      numeroSeguro(
+        flujoMedio.fuerza
+      ) * 2;
+  }
+
+  if (
+    flujoMedio?.direccion ===
+    "BAJISTA"
+  ) {
+    bearish +=
+      6 +
+      numeroSeguro(
+        flujoMedio.fuerza
+      ) * 2;
+  }
+
+  if (
+    flujoCorto &&
+    flujoMedio &&
+    flujoCorto.direccion !==
+      "NEUTRAL" &&
+    flujoMedio.direccion !==
+      "NEUTRAL" &&
+    flujoCorto.direccion !==
+      flujoMedio.direccion
+  ) {
+    bullish -= 8;
+    bearish -= 8;
+
+    agregarTexto(
+      advertencias,
+      "El flujo corto y el flujo medio no coinciden."
+    );
+  }
+
+
+  /*
+  -------------------------------------------------------
+  FIBONACCI
+  -------------------------------------------------------
+  */
+
+  if (
+    fibonacci?.disponible &&
+    fibonacci?.cercaDeNivel &&
+    fibonacci?.nivelCercano
+  ) {
+    const nivel =
+      fibonacci.nivelCercano
+        .porcentaje;
+
+    const puntos =
+      [50, 61.8].includes(nivel)
+        ? 14
+        : [38.2, 78.6].includes(nivel)
+          ? 11
+          : 8;
+
+    if (
+      fibonacci.direccionBase ===
+      "ALCISTA"
+    ) {
+      bullish += puntos;
+
+      agregarTexto(
+        razonesBullish,
+        `Fibonacci ${nivel}% actúa como posible soporte.`
+      );
+    }
+
+    if (
+      fibonacci.direccionBase ===
+      "BAJISTA"
+    ) {
+      bearish += puntos;
+
+      agregarTexto(
+        razonesBearish,
+        `Fibonacci ${nivel}% actúa como posible resistencia.`
+      );
+    }
+  }
+
+
+  /*
+  -------------------------------------------------------
+  VOLATILIDAD
+  -------------------------------------------------------
+  */
+
+  if (
+    volatilidad?.nivel ===
+    "BAJA"
+  ) {
+    bullish += 3;
+    bearish += 3;
+  }
+
+  if (
+    volatilidad?.nivel ===
+    "MEDIA"
+  ) {
+    bullish += 1;
+    bearish += 1;
+  }
+
+  if (
+    volatilidad?.nivel ===
+    "ALTA"
+  ) {
+    bullish -= 6;
+    bearish -= 6;
+
+    agregarTexto(
+      advertencias,
+      "La volatilidad alta reduce la estabilidad."
+    );
+  }
+
+  if (
+    volatilidad?.nivel ===
+    "MUY ALTA"
+  ) {
+    bullish -= 14;
+    bearish -= 14;
+
+    agregarTexto(
+      advertencias,
+      "La volatilidad muy alta impide confirmar una entrada estable."
+    );
+  }
+
+
+  /*
+  -------------------------------------------------------
+  MERCADO LATERAL
+  -------------------------------------------------------
+  */
+
+  if (
+    mercadoLateral?.lateral
+  ) {
+    bullish -= 16;
+    bearish -= 16;
+
+    agregarTexto(
+      advertencias,
+      "El mercado se encuentra lateral."
+    );
+  }
+
+
+  bullish =
     limitarNumero(
-      combinado.bullish,
+      bullish,
       0,
-      CONFIGURACION_PREDICCION
-        .maximoPuntajeRiseFall
+      configuracion
+        .maximoPuntaje
     );
 
-  combinado.bearish =
+  bearish =
     limitarNumero(
-      combinado.bearish,
+      bearish,
       0,
-      CONFIGURACION_PREDICCION
-        .maximoPuntajeRiseFall
+      configuracion
+        .maximoPuntaje
     );
+
 
   const diferencia =
     Math.abs(
-      combinado.bullish -
-      combinado.bearish
+      bullish -
+      bearish
     );
 
-  let direccion = "WAIT";
-  let puntaje = 0;
-  let razones = [];
+  let direccion =
+    bullish >= bearish
+      ? "RISE"
+      : "FALL";
 
-  if (
-    combinado.bullish >
-    combinado.bearish
-  ) {
-    direccion = "RISE";
-    puntaje =
-      combinado.bullish;
-    razones =
-      combinado.razonesBullish;
-  }
+  let puntaje =
+    Math.max(
+      bullish,
+      bearish
+    );
 
-  if (
-    combinado.bearish >
-    combinado.bullish
-  ) {
-    direccion = "FALL";
-    puntaje =
-      combinado.bearish;
-    razones =
-      combinado.razonesBearish;
-  }
+  let razones =
+    direccion === "RISE"
+      ? razonesBullish
+      : razonesBearish;
+
+
+  /*
+  -------------------------------------------------------
+  COINCIDENCIA PRINCIPAL
+  -------------------------------------------------------
+  */
 
   const coincidenciaRise =
     direccion === "RISE" &&
-    resumen.tendencia.direccion ===
+    tendencia?.direccion ===
       "ALCISTA" &&
-    resumen.momentum.direccion ===
+    momentum?.direccion ===
       "POSITIVO" &&
-    resumen.flujoCorto.direccion ===
+    flujoCorto?.direccion ===
       "ALCISTA";
 
   const coincidenciaFall =
     direccion === "FALL" &&
-    resumen.tendencia.direccion ===
+    tendencia?.direccion ===
       "BAJISTA" &&
-    resumen.momentum.direccion ===
+    momentum?.direccion ===
       "NEGATIVO" &&
-    resumen.flujoCorto.direccion ===
+    flujoCorto?.direccion ===
       "BAJISTA";
 
   const coincidenciaPrincipal =
     coincidenciaRise ||
     coincidenciaFall;
 
-  const diferenciaValida =
-    diferencia >=
-    CONFIGURACION_PREDICCION
-      .diferenciaMinimaRiseFall;
-
-  const volatilidadAceptable =
-    resumen.volatilidad.nivel !==
-    "MUY ALTA";
-
-  const noLateral =
-    !resumen.mercadoLateral
-      .lateral;
 
   if (
     !coincidenciaPrincipal
   ) {
-    puntaje -=
-      CONFIGURACION_PREDICCION
-        .penalizacionContradiccion;
+    puntaje -= 12;
 
-    agregarAdvertencia(
-      combinado.advertencias,
+    agregarTexto(
+      advertencias,
       "Tendencia, momentum y flujo corto todavía no coinciden completamente."
     );
   }
 
+
   if (
-    !diferenciaValida
+    diferencia <
+    configuracion
+      .diferenciaMinima
   ) {
     puntaje -= 8;
 
-    agregarAdvertencia(
-      combinado.advertencias,
-      "La diferencia entre presión alcista y bajista todavía es reducida."
+    agregarTexto(
+      advertencias,
+      "La diferencia entre presión alcista y bajista es reducida."
     );
   }
+
 
   puntaje =
     limitarNumero(
@@ -1227,41 +858,50 @@ export function evaluarRiseFall(
       100
     );
 
+
   if (
     puntaje <
-      CONFIGURACION_PREDICCION
+      configuracion
         .puntajeCandidata ||
-    !diferenciaValida
+    diferencia < 10
   ) {
     direccion = "WAIT";
   }
+
 
   const estado =
     direccion === "WAIT"
       ? "MONITORING"
       : obtenerEstadoPreliminar(
+          "rise_fall",
           puntaje
         );
+
 
   const aptaParaConfirmacion =
     Boolean(
       direccion !== "WAIT" &&
       puntaje >=
-        CONFIGURACION_PREDICCION
+        configuracion
           .puntajeConfirmado &&
       coincidenciaPrincipal &&
-      diferenciaValida &&
-      volatilidadAceptable &&
-      noLateral
+      diferencia >=
+        configuracion
+          .diferenciaMinima &&
+      !mercadoLateral?.lateral &&
+      volatilidad?.nivel !==
+        "MUY ALTA"
     );
+
 
   if (
     razones.length === 0
   ) {
     razones = [
-      "Los indicadores todavía no presentan una dirección suficientemente clara."
+      "Los indicadores todavía no presentan una dirección clara."
     ];
   }
+
 
   return crearResultadoBase({
     estrategia:
@@ -1275,52 +915,30 @@ export function evaluarRiseFall(
 
     razones,
 
-    advertencias:
-      combinado.advertencias,
+    advertencias,
 
     componentes: {
-      tendencia:
-        evaluacionTendencia,
-
-      rsi:
-        evaluacionRsi,
-
-      momentum:
-        evaluacionMomentum,
-
-      flujo:
-        evaluacionFlujo,
-
-      fibonacci:
-        evaluacionFibonacci,
-
-      volatilidad:
-        evaluacionVolatilidad,
-
-      mercadoLateral:
-        lateral
+      tendencia,
+      momentum,
+      flujoCorto,
+      flujoMedio,
+      volatilidad,
+      fibonacci,
+      mercadoLateral
     },
 
     metadata: {
       bullish:
-        Math.round(
-          combinado.bullish
-        ),
+        Math.round(bullish),
 
       bearish:
-        Math.round(
-          combinado.bearish
-        ),
+        Math.round(bearish),
 
       diferencia:
-        Math.round(
-          diferencia
-        ),
+        Math.round(diferencia),
 
       coincidenciaPrincipal,
-      diferenciaValida,
-      volatilidadAceptable,
-      noLateral,
+
       aptaParaConfirmacion
     }
   });
@@ -1328,35 +946,31 @@ export function evaluarRiseFall(
 
 
 /* =====================================================
-16. EVEN / ODD
+8. EVEN / ODD
 ===================================================== */
 
 export function evaluarEvenOdd(
   resumen
 ) {
+  const configuracion =
+    CONFIGURACION_PREDICCION
+      .even_odd;
+
   const estadisticas =
     resumen?.estadisticasDigitos;
-
-  const minimo =
-    resumen?.modo === "complete"
-      ? CONFIGURACION_PREDICCION
-          .minimoDigitosComplete
-      : CONFIGURACION_PREDICCION
-          .minimoDigitosFast;
 
   if (
     !estadisticas ||
     estadisticas.cantidad <
-      minimo
+      configuracion
+        .minimoDigitos
   ) {
     return crearResultadoMonitoreo(
       "even_odd",
-      `Se necesitan al menos ${minimo} últimos dígitos para analizar Even / Odd.`
+      `Se necesitan al menos ${configuracion.minimoDigitos} últimos dígitos.`
     );
   }
 
-  const cantidad =
-    estadisticas.cantidad;
 
   const porcentajePares =
     numeroSeguro(
@@ -1377,87 +991,57 @@ export function evaluarEvenOdd(
     );
 
   const direccionDominante =
-    porcentajePares >
+    porcentajePares >=
       porcentajeImpares
       ? "EVEN"
       : "ODD";
 
-  const porcentajeDominante =
-    Math.max(
-      porcentajePares,
-      porcentajeImpares
-    );
 
   let puntaje =
-    42 +
-    diferencia * 1.8;
+    48 +
+    diferencia * 1.55;
 
-  if (cantidad >= 50) {
+  if (
+    estadisticas.cantidad >= 50
+  ) {
     puntaje += 4;
   }
 
-  if (cantidad >= 80) {
-    puntaje += 3;
+  if (
+    estadisticas.cantidad >= 80
+  ) {
+    puntaje += 2;
   }
 
-  /*
-  Penalización si la diferencia es demasiado pequeña.
-  */
-  if (
-    diferencia <
-    CONFIGURACION_PREDICCION
-      .diferenciaMinimaDigitos
-  ) {
-    puntaje -= 12;
-  }
 
   puntaje =
     limitarNumero(
       puntaje,
       0,
-      CONFIGURACION_PREDICCION
-        .maximoPuntajeEvenOdd
+      configuracion
+        .maximoPuntaje
     );
 
-  let direccion =
-    direccionDominante;
 
-  if (
-    puntaje <
-      CONFIGURACION_PREDICCION
-        .puntajeCandidata ||
-    diferencia <
-      CONFIGURACION_PREDICCION
-        .diferenciaMinimaDigitos
-  ) {
-    direccion = "WAIT";
-  }
+  const direccion =
+    diferencia >=
+      configuracion
+        .diferenciaMinima &&
+    puntaje >=
+      configuracion
+        .puntajeCandidata
+      ? direccionDominante
+      : "WAIT";
+
 
   const estado =
     direccion === "WAIT"
       ? "MONITORING"
       : obtenerEstadoPreliminar(
+          "even_odd",
           puntaje
         );
 
-  const razones = [
-    `En los últimos ${cantidad} ticks se observaron ${estadisticas.pares} dígitos pares.`,
-    `Se observaron ${estadisticas.impares} dígitos impares.`,
-    `El grupo dominante representa ${porcentajeDominante.toFixed(1)}%.`
-  ];
-
-  const advertencias = [
-    "Even / Odd depende del siguiente último dígito; la frecuencia histórica no garantiza el próximo resultado."
-  ];
-
-  if (
-    direccion === "WAIT"
-  ) {
-    agregarAdvertencia(
-      advertencias,
-      "La diferencia entre pares e impares todavía no es suficiente."
-    );
-  }
 
   return crearResultadoBase({
     estrategia:
@@ -1469,9 +1053,14 @@ export function evaluarEvenOdd(
 
     estado,
 
-    razones,
+    razones: [
+      `Últimos ${estadisticas.cantidad} ticks: ${estadisticas.pares} pares y ${estadisticas.impares} impares.`,
+      `Diferencia observada: ${diferencia.toFixed(1)}%.`
+    ],
 
-    advertencias,
+    advertencias: [
+      "La frecuencia pasada no garantiza el siguiente dígito."
+    ],
 
     componentes: {
       pares:
@@ -1482,62 +1071,46 @@ export function evaluarEvenOdd(
     },
 
     metadata: {
-      cantidad,
+      diferencia,
       porcentajePares,
       porcentajeImpares,
-      diferencia,
-      dominante:
-        direccionDominante,
 
       aptaParaConfirmacion:
         direccion !== "WAIT" &&
         puntaje >=
-          CONFIGURACION_PREDICCION
-            .puntajeConfirmado &&
-        diferencia >=
-          CONFIGURACION_PREDICCION
-            .diferenciaMinimaDigitos
+          configuracion
+            .puntajeConfirmado
     }
   });
 }
 
 
 /* =====================================================
-17. OVER / UNDER
+9. OVER / UNDER
 ===================================================== */
 
 export function evaluarOverUnder(
   resumen
 ) {
+  const configuracion =
+    CONFIGURACION_PREDICCION
+      .over_under;
+
   const estadisticas =
     resumen?.estadisticasDigitos;
-
-  const minimo =
-    resumen?.modo === "complete"
-      ? CONFIGURACION_PREDICCION
-          .minimoDigitosComplete
-      : CONFIGURACION_PREDICCION
-          .minimoDigitosFast;
 
   if (
     !estadisticas ||
     estadisticas.cantidad <
-      minimo
+      configuracion
+        .minimoDigitos
   ) {
     return crearResultadoMonitoreo(
       "over_under",
-      `Se necesitan al menos ${minimo} últimos dígitos para analizar Over / Under.`
+      `Se necesitan al menos ${configuracion.minimoDigitos} últimos dígitos.`
     );
   }
 
-  const cantidad =
-    estadisticas.cantidad;
-
-  const porcentajeBajos =
-    numeroSeguro(
-      estadisticas
-        .porcentajeBajos
-    );
 
   const porcentajeAltos =
     numeroSeguro(
@@ -1545,91 +1118,70 @@ export function evaluarOverUnder(
         .porcentajeAltos
     );
 
+  const porcentajeBajos =
+    numeroSeguro(
+      estadisticas
+        .porcentajeBajos
+    );
+
   const diferencia =
     Math.abs(
-      porcentajeBajos -
-      porcentajeAltos
+      porcentajeAltos -
+      porcentajeBajos
     );
 
   const direccionDominante =
-    porcentajeAltos >
+    porcentajeAltos >=
       porcentajeBajos
       ? "OVER"
       : "UNDER";
 
-  const porcentajeDominante =
-    Math.max(
-      porcentajeAltos,
-      porcentajeBajos
-    );
 
   let puntaje =
-    42 +
-    diferencia * 1.8;
+    48 +
+    diferencia * 1.55;
 
-  if (cantidad >= 50) {
+  if (
+    estadisticas.cantidad >= 50
+  ) {
     puntaje += 4;
   }
 
-  if (cantidad >= 80) {
-    puntaje += 3;
+  if (
+    estadisticas.cantidad >= 80
+  ) {
+    puntaje += 2;
   }
 
-  if (
-    diferencia <
-    CONFIGURACION_PREDICCION
-      .diferenciaMinimaDigitos
-  ) {
-    puntaje -= 12;
-  }
 
   puntaje =
     limitarNumero(
       puntaje,
       0,
-      CONFIGURACION_PREDICCION
-        .maximoPuntajeOverUnder
+      configuracion
+        .maximoPuntaje
     );
 
-  let direccion =
-    direccionDominante;
 
-  if (
-    puntaje <
-      CONFIGURACION_PREDICCION
-        .puntajeCandidata ||
-    diferencia <
-      CONFIGURACION_PREDICCION
-        .diferenciaMinimaDigitos
-  ) {
-    direccion = "WAIT";
-  }
+  const direccion =
+    diferencia >=
+      configuracion
+        .diferenciaMinima &&
+    puntaje >=
+      configuracion
+        .puntajeCandidata
+      ? direccionDominante
+      : "WAIT";
+
 
   const estado =
     direccion === "WAIT"
       ? "MONITORING"
       : obtenerEstadoPreliminar(
+          "over_under",
           puntaje
         );
 
-  const razones = [
-    `En los últimos ${cantidad} ticks hubo ${estadisticas.bajos} dígitos entre 0 y 4.`,
-    `Hubo ${estadisticas.altos} dígitos entre 5 y 9.`,
-    `El grupo dominante representa ${porcentajeDominante.toFixed(1)}%.`
-  ];
-
-  const advertencias = [
-    "Over / Under depende del próximo último dígito y no puede garantizarse con frecuencias anteriores."
-  ];
-
-  if (
-    direccion === "WAIT"
-  ) {
-    agregarAdvertencia(
-      advertencias,
-      "La diferencia entre dígitos altos y bajos todavía no es suficiente."
-    );
-  }
 
   return crearResultadoBase({
     estrategia:
@@ -1641,9 +1193,14 @@ export function evaluarOverUnder(
 
     estado,
 
-    razones,
+    razones: [
+      `Últimos ${estadisticas.cantidad} ticks: ${estadisticas.bajos} dígitos entre 0 y 4 y ${estadisticas.altos} entre 5 y 9.`,
+      `Diferencia observada: ${diferencia.toFixed(1)}%.`
+    ],
 
-    advertencias,
+    advertencias: [
+      "La frecuencia pasada no garantiza el siguiente dígito."
+    ],
 
     componentes: {
       bajos:
@@ -1654,59 +1211,61 @@ export function evaluarOverUnder(
     },
 
     metadata: {
-      cantidad,
+      diferencia,
       porcentajeBajos,
       porcentajeAltos,
-      diferencia,
-      dominante:
-        direccionDominante,
 
       aptaParaConfirmacion:
         direccion !== "WAIT" &&
         puntaje >=
-          CONFIGURACION_PREDICCION
-            .puntajeConfirmado &&
-        diferencia >=
-          CONFIGURACION_PREDICCION
-            .diferenciaMinimaDigitos
+          configuracion
+            .puntajeConfirmado
     }
   });
 }
 
 
 /* =====================================================
-18. MATCH
+10. MATCHES
 ===================================================== */
 
 export function evaluarMatch(
   resumen
 ) {
+  const configuracion =
+    CONFIGURACION_PREDICCION
+      .match;
+
   const estadisticas =
     resumen?.estadisticasDigitos;
-
-  const minimo = 30;
 
   if (
     !estadisticas ||
     estadisticas.cantidad <
-      minimo
+      configuracion
+        .minimoDigitos
   ) {
     return crearResultadoMonitoreo(
       "match",
-      `Se necesitan al menos ${minimo} últimos dígitos para analizar Match.`
+      `Se necesitan al menos ${configuracion.minimoDigitos} últimos dígitos para analizar Matches.`
     );
   }
 
+
   const cantidad =
-    estadisticas.cantidad;
+    numeroSeguro(
+      estadisticas.cantidad
+    );
 
   const digito =
     estadisticas
       .digitoCaliente;
 
   const frecuencia =
-    estadisticas
-      .frecuenciaCaliente;
+    numeroSeguro(
+      estadisticas
+        .frecuenciaCaliente
+    );
 
   const porcentaje =
     cantidad > 0
@@ -1716,71 +1275,67 @@ export function evaluarMatch(
         ) * 100
       : 0;
 
-  const exceso =
-    porcentaje - 10;
 
-  let puntaje =
-    40 +
+  const excesoSobreEsperado =
     Math.max(
       0,
-      exceso
-    ) * 2.1;
+      porcentaje - 10
+    );
 
-  if (frecuencia >= 5) {
+
+  let puntaje =
+    48 +
+    excesoSobreEsperado * 2.2;
+
+
+  if (
+    frecuencia >= 5
+  ) {
     puntaje += 5;
   }
 
   if (
-    porcentaje <
-    17
+    frecuencia >= 7
   ) {
-    puntaje -= 10;
+    puntaje += 3;
   }
+
 
   puntaje =
     limitarNumero(
       puntaje,
       0,
-      CONFIGURACION_PREDICCION
-        .maximoPuntajeMatch
+      configuracion
+        .maximoPuntaje
     );
 
-  const frecuenciaSuficiente =
-    frecuencia >= 4 &&
-    porcentaje >= 17;
 
-  let direccion =
+  const frecuenciaSuficiente =
+    frecuencia >=
+      configuracion
+        .frecuenciaMinima &&
+    porcentaje >=
+      configuracion
+        .porcentajeMinimo;
+
+
+  const direccion =
     frecuenciaSuficiente &&
     puntaje >=
-      CONFIGURACION_PREDICCION
+      configuracion
         .puntajeCandidata
       ? "MATCH"
       : "WAIT";
+
 
   const estado =
     direccion === "WAIT"
       ? "MONITORING"
       : obtenerEstadoPreliminar(
+          "match",
           puntaje
         );
 
-  const razones = [
-    `En los últimos ${cantidad} ticks, el dígito ${digito} apareció ${frecuencia} veces.`,
-    `Su frecuencia observada es ${porcentaje.toFixed(1)}%.`
-  ];
-
-  const advertencias = [
-    "Match es experimental y la repetición pasada de un dígito no garantiza su siguiente aparición."
-  ];
-
-  if (
-    direccion === "WAIT"
-  ) {
-    agregarAdvertencia(
-      advertencias,
-      "Ningún dígito destaca lo suficiente para preparar una entrada."
-    );
-  }
 
   return crearResultadoBase({
     estrategia:
@@ -1792,9 +1347,15 @@ export function evaluarMatch(
 
     estado,
 
-    razones,
+    razones: [
+      `En los últimos ${cantidad} ticks, el número ${digito} apareció ${frecuencia} veces.`,
+      `Frecuencia observada: ${porcentaje.toFixed(1)}%.`
+    ],
 
-    advertencias,
+    advertencias: [
+      "Matches es experimental.",
+      "La repetición pasada de un número no garantiza su siguiente aparición."
+    ],
 
     componentes: {
       frecuencia,
@@ -1807,10 +1368,14 @@ export function evaluarMatch(
       porcentaje,
       cantidad,
 
+      ventanaEvaluacionTicks:
+        configuracion
+          .ventanaEvaluacionTicks,
+
       aptaParaConfirmacion:
         direccion === "MATCH" &&
         puntaje >=
-          CONFIGURACION_PREDICCION
+          configuracion
             .puntajeConfirmado &&
         frecuenciaSuficiente
     }
@@ -1819,7 +1384,7 @@ export function evaluarMatch(
 
 
 /* =====================================================
-19. GENERADOR GENERAL
+11. GENERADOR GENERAL
 ===================================================== */
 
 export function generarPrediccion({
@@ -1859,7 +1424,7 @@ export function generarPrediccion({
 
 
 /* =====================================================
-20. COMPARAR RESULTADOS
+12. COMPARAR PREDICCIONES
 ===================================================== */
 
 export function mismaPrediccion(
@@ -1883,69 +1448,46 @@ export function mismaPrediccion(
 
 
 /* =====================================================
-21. TEXTO PARA PANTALLA
+13. TEXTO PARA ANÁLISIS MANUAL
 ===================================================== */
 
 export function crearTextoOperacion(
   resultado
 ) {
   if (!resultado) {
-    return "Sin resultado disponible.";
+    return "Sin análisis disponible.";
   }
-
-  const clasificacion =
-    clasificarPuntaje(
-      resultado.puntaje
-    );
 
   if (
     resultado.direccion ===
     "WAIT"
   ) {
     return (
-      "Buscando una configuración más sólida. " +
-      `Signal Quality: ${clasificacion.nivel}.`
+      `Sin entrada clara. ` +
+      `Puntaje actual: ${resultado.puntaje}/100.`
     );
   }
 
   if (
-    resultado.estado ===
-    "CANDIDATE"
+    resultado.direccion ===
+    "MATCH"
   ) {
     return (
-      `Posible ${resultado.direccion} en validación. ` +
-      `Signal Score: ${resultado.puntaje}/100.`
-    );
-  }
-
-  if (
-    resultado.estado ===
-    "PREPARE"
-  ) {
-    return (
-      `Posible ${resultado.direccion}. ` +
-      "Prepare la operación y espere confirmación."
-    );
-  }
-
-  if (
-    resultado.estado ===
-    "CONFIRMED"
-  ) {
-    return (
-      `${resultado.direccion} confirmado. ` +
-      "Ejecute la operación ahora."
+      `Posible coincidencia con el número ` +
+      `${resultado.metadata?.digito ?? "--"}. ` +
+      `Puntaje actual: ${resultado.puntaje}/100.`
     );
   }
 
   return (
-    `Signal Score: ${resultado.puntaje}/100.`
+    `Posible ${resultado.nombreVoz}. ` +
+    `Puntaje actual: ${resultado.puntaje}/100.`
   );
 }
 
 
 /* =====================================================
-22. RESUMEN DEL PUNTAJE
+14. RESUMEN DEL PUNTAJE
 ===================================================== */
 
 export function crearResumenPuntaje(
@@ -1962,7 +1504,8 @@ export function crearResumenPuntaje(
 
   const clasificacion =
     clasificarPuntaje(
-      resultado.puntaje
+      resultado.puntaje,
+      resultado.estrategia
     );
 
   return {
@@ -1993,6 +1536,6 @@ export function crearResumenPuntaje(
 /*
 =========================================================
 FIN DEL ARCHIVO js/prediction.js
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 =========================================================
 */
