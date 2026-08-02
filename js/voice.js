@@ -1,15 +1,22 @@
 /*
 =========================================================
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 Archivo: js/voice.js
 
 Responsabilidad:
 - Administrar el asistente de voz.
-- Detectar las voces disponibles del dispositivo.
-- Permitir elegir acento, velocidad, tono y volumen.
-- Hablar en español aunque la interfaz use términos en inglés.
-- Evitar mensajes cortados o superpuestos.
-- Controlar prealertas, confirmaciones, resultados y cancelaciones.
+- Hablar en español.
+- Pronunciar:
+  Rise = Sube
+  Fall = Baja
+  Even = Par
+  Odd = Impar
+  Over = Mayor
+  Under = Menor
+  Matches = Coincidencia
+- Evitar voces superpuestas.
+- Anunciar PREPARE, REVALIDATING, EXECUTE NOW,
+  CANCELLED y RESULT.
 =========================================================
 */
 
@@ -32,21 +39,28 @@ export const CONFIGURACION_VOZ = Object.freeze({
 
 
 /* =====================================================
-2. TRADUCCIONES PARA LA VOZ
+2. TRADUCCIONES
 ===================================================== */
 
 const TRADUCCIONES = Object.freeze({
   RISE: "Sube",
   FALL: "Baja",
+
   EVEN: "Par",
   ODD: "Impar",
-  OVER: "Más de cuatro",
-  UNDER: "Menos de cinco",
+
+  OVER: "Mayor",
+  UNDER: "Menor",
+
   MATCH: "Coincidencia",
+  MATCHES: "Coincidencia",
+
   WAIT: "Esperar",
 
-  MONITORING: "Monitoreando",
+  MONITORING: "Buscando entrada",
+  CANDIDATE: "Validando entrada",
   PREPARE: "Prepararse",
+  REVALIDATING: "Revalidando",
   CONFIRMED: "Confirmado",
   EXECUTING: "Ejecutando",
   RESULT: "Resultado",
@@ -75,7 +89,7 @@ function esperar(
 function textoValido(
   texto
 ) {
-  return (
+  return Boolean(
     typeof texto === "string" &&
     texto.trim().length > 0
   );
@@ -90,7 +104,11 @@ function limitarNumero(
   const numero =
     Number(valor);
 
-  if (!Number.isFinite(numero)) {
+  if (
+    !Number.isFinite(
+      numero
+    )
+  ) {
     return minimo;
   }
 
@@ -130,7 +148,9 @@ export function crearControladorVoz(
     compatible;
 
   let voces = [];
-  let vozSeleccionada = null;
+
+  let vozSeleccionada =
+    null;
 
   let velocidad =
     limitarNumero(
@@ -157,7 +177,9 @@ export function crearControladorVoz(
     );
 
   let hablando = false;
-  let cancelacionSolicitada = false;
+
+  let cancelacionSolicitada =
+    false;
 
   const cola = [];
 
@@ -182,7 +204,7 @@ export function crearControladorVoz(
       !escuchas[evento] ||
       typeof funcion !== "function"
     ) {
-      return;
+      return false;
     }
 
     if (
@@ -194,6 +216,8 @@ export function crearControladorVoz(
         funcion
       );
     }
+
+    return true;
   }
 
 
@@ -201,8 +225,10 @@ export function crearControladorVoz(
     evento,
     funcion
   ) {
-    if (!escuchas[evento]) {
-      return;
+    if (
+      !escuchas[evento]
+    ) {
+      return false;
     }
 
     escuchas[evento] =
@@ -210,6 +236,8 @@ export function crearControladorVoz(
         (registrada) =>
           registrada !== funcion
       );
+
+    return true;
   }
 
 
@@ -236,7 +264,7 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  6. CARGAR VOCES
+  6. CARGAR Y ORDENAR VOCES
   =================================================== */
 
   function ordenarVoces(
@@ -277,8 +305,12 @@ export function crearControladorVoz(
 
 
   function seleccionarVozPreferida() {
-    if (voces.length === 0) {
-      vozSeleccionada = null;
+    if (
+      voces.length === 0
+    ) {
+      vozSeleccionada =
+        null;
+
       return null;
     }
 
@@ -290,13 +322,15 @@ export function crearControladorVoz(
     const coincidenciaExacta =
       voces.find(
         (voz) =>
-          voz.lang
+          String(voz.lang)
             .toLowerCase() ===
-          idiomaPreferido
+          String(idiomaPreferido)
             .toLowerCase()
       );
 
-    if (coincidenciaExacta) {
+    if (
+      coincidenciaExacta
+    ) {
       vozSeleccionada =
         coincidenciaExacta;
 
@@ -321,7 +355,9 @@ export function crearControladorVoz(
 
 
   function cargarVoces() {
-    if (!compatible) {
+    if (
+      !compatible
+    ) {
       emitir(
         "error",
         {
@@ -333,24 +369,24 @@ export function crearControladorVoz(
       return [];
     }
 
-    const disponibles =
-      window.speechSynthesis
-        .getVoices();
-
     voces =
       ordenarVoces(
-        disponibles
+        window.speechSynthesis
+          .getVoices()
       );
 
-    if (
-      !vozSeleccionada ||
-      !voces.some(
+    const seleccionValida =
+      vozSeleccionada &&
+      voces.some(
         (voz) =>
           voz.name ===
             vozSeleccionada.name &&
           voz.lang ===
             vozSeleccionada.lang
-      )
+      );
+
+    if (
+      !seleccionValida
     ) {
       seleccionarVozPreferida();
     }
@@ -360,6 +396,7 @@ export function crearControladorVoz(
       {
         voces:
           obtenerVoces(),
+
         seleccionada:
           obtenerVozSeleccionada()
       }
@@ -370,7 +407,9 @@ export function crearControladorVoz(
 
 
   async function esperarVoces() {
-    if (!compatible) {
+    if (
+      !compatible
+    ) {
       return [];
     }
 
@@ -384,8 +423,10 @@ export function crearControladorVoz(
     ) {
       cargarVoces();
 
-      if (voces.length > 0) {
-        return obtenerVoces();
+      if (
+        voces.length > 0
+      ) {
+        break;
       }
 
       await esperar(200);
@@ -396,40 +437,52 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  7. CONSULTAR VOCES
+  7. CONSULTAR Y SELECCIONAR VOCES
   =================================================== */
 
   function obtenerVoces() {
     return voces.map(
       (voz) => ({
-        name: voz.name,
-        lang: voz.lang,
+        name:
+          voz.name,
+
+        lang:
+          voz.lang,
+
         localService:
           Boolean(
             voz.localService
           ),
+
         default:
-          Boolean(voz.default)
+          Boolean(
+            voz.default
+          )
       })
     );
   }
 
 
   function obtenerVozSeleccionada() {
-    if (!vozSeleccionada) {
+    if (
+      !vozSeleccionada
+    ) {
       return null;
     }
 
     return {
       name:
         vozSeleccionada.name,
+
       lang:
         vozSeleccionada.lang,
+
       localService:
         Boolean(
           vozSeleccionada
             .localService
         ),
+
       default:
         Boolean(
           vozSeleccionada
@@ -455,7 +508,9 @@ export function crearControladorVoz(
             texto
       );
 
-    if (!encontrada) {
+    if (
+      !encontrada
+    ) {
       return false;
     }
 
@@ -467,6 +522,7 @@ export function crearControladorVoz(
       {
         tipo:
           "voz-seleccionada",
+
         voz:
           obtenerVozSeleccionada()
       }
@@ -477,7 +533,7 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  8. CONFIGURACIÓN DE VOZ
+  8. CONFIGURACIÓN
   =================================================== */
 
   function establecerVelocidad(
@@ -541,7 +597,9 @@ export function crearControladorVoz(
   =================================================== */
 
   function activar() {
-    if (!compatible) {
+    if (
+      !compatible
+    ) {
       return false;
     }
 
@@ -550,7 +608,9 @@ export function crearControladorVoz(
     emitir(
       "estado",
       {
-        tipo: "activada",
+        tipo:
+          "activada",
+
         activa
       }
     );
@@ -561,12 +621,15 @@ export function crearControladorVoz(
 
   function silenciar() {
     activa = false;
+
     cancelarTodo();
 
     emitir(
       "estado",
       {
-        tipo: "silenciada",
+        tipo:
+          "silenciada",
+
         activa
       }
     );
@@ -576,7 +639,9 @@ export function crearControladorVoz(
 
 
   function alternar() {
-    if (activa) {
+    if (
+      activa
+    ) {
       silenciar();
     } else {
       activar();
@@ -604,7 +669,9 @@ export function crearControladorVoz(
         texto
       );
 
-    if (vozSeleccionada) {
+    if (
+      vozSeleccionada
+    ) {
       mensaje.voice =
         vozSeleccionada;
 
@@ -660,6 +727,7 @@ export function crearControladorVoz(
           !textoValido(texto)
         ) {
           resolver(false);
+
           return;
         }
 
@@ -710,6 +778,7 @@ export function crearControladorVoz(
                 {
                   mensaje:
                     "No fue posible reproducir el mensaje.",
+
                   error:
                     evento.error
                 }
@@ -721,7 +790,9 @@ export function crearControladorVoz(
 
         try {
           window.speechSynthesis
-            .speak(mensaje);
+            .speak(
+              mensaje
+            );
         } catch (error) {
           hablando = false;
 
@@ -730,6 +801,7 @@ export function crearControladorVoz(
             {
               mensaje:
                 "Error al iniciar la voz.",
+
               error
             }
           );
@@ -786,7 +858,7 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  13. AGREGAR MENSAJES
+  13. HABLAR Y HABLAR SECUENCIA
   =================================================== */
 
   function hablar(
@@ -811,6 +883,7 @@ export function crearControladorVoz(
     cola.push({
       texto:
         texto.trim(),
+
       opciones
     });
 
@@ -825,18 +898,21 @@ export function crearControladorVoz(
     opciones = {}
   ) {
     if (
-      !Array.isArray(mensajes)
+      !Array.isArray(
+        mensajes
+      )
     ) {
       return false;
     }
 
-    const textosValidos =
+    const mensajesValidos =
       mensajes.filter(
         textoValido
       );
 
     if (
-      textosValidos.length === 0
+      mensajesValidos.length ===
+      0
     ) {
       return false;
     }
@@ -848,11 +924,12 @@ export function crearControladorVoz(
       cancelarTodo();
     }
 
-    textosValidos.forEach(
+    mensajesValidos.forEach(
       (texto) => {
         cola.push({
           texto:
             texto.trim(),
+
           opciones
         });
       }
@@ -873,9 +950,12 @@ export function crearControladorVoz(
       true;
 
     cola.length = 0;
+
     hablando = false;
 
-    if (compatible) {
+    if (
+      compatible
+    ) {
       try {
         window.speechSynthesis
           .cancel();
@@ -890,7 +970,7 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  15. MENSAJES ESPECÍFICOS
+  15. TRADUCCIONES
   =================================================== */
 
   function traducirDireccion(
@@ -908,6 +988,36 @@ export function crearControladorVoz(
     );
   }
 
+
+  function traducirEstrategia(
+    estrategia
+  ) {
+    const nombres = {
+      rise_fall:
+        "Sube y Baja",
+
+      even_odd:
+        "Par e Impar",
+
+      over_under:
+        "Mayor y Menor",
+
+      match:
+        "Coincidencia"
+    };
+
+    return (
+      nombres[
+        estrategia
+      ] ||
+      "estrategia seleccionada"
+    );
+  }
+
+
+  /* ===================================================
+  16. CONEXIÓN
+  =================================================== */
 
   function anunciarConexion(
     estado
@@ -931,9 +1041,9 @@ export function crearControladorVoz(
 
     if (
       valor ===
-      "CONNECTED" ||
+        "CONNECTED" ||
       valor ===
-      "LIVE"
+        "LIVE"
     ) {
       return hablar(
         "Conectado.",
@@ -945,9 +1055,9 @@ export function crearControladorVoz(
 
     if (
       valor ===
-      "DISCONNECTED" ||
+        "DISCONNECTED" ||
       valor ===
-      "OFFLINE"
+        "OFFLINE"
     ) {
       return hablar(
         "Desconectado.",
@@ -957,7 +1067,10 @@ export function crearControladorVoz(
       );
     }
 
-    if (valor === "ERROR") {
+    if (
+      valor ===
+      "ERROR"
+    ) {
       return hablar(
         "Se produjo un error de conexión.",
         {
@@ -969,6 +1082,10 @@ export function crearControladorVoz(
     return false;
   }
 
+
+  /* ===================================================
+  17. MOTOR
+  =================================================== */
 
   function anunciarMotor(
     encendido
@@ -984,21 +1101,79 @@ export function crearControladorVoz(
   }
 
 
-  function anunciarMonitoreo() {
-    return hablar(
-      "Monitoreando el mercado.",
+  function anunciarBusqueda({
+    mercado = "",
+    estrategia = ""
+  } = {}) {
+    const estrategiaVoz =
+      traducirEstrategia(
+        estrategia
+      );
+
+    const mensajes = [
+      "Motor de análisis encendido."
+    ];
+
+    if (
+      textoValido(
+        mercado
+      )
+    ) {
+      mensajes.push(
+        `${mercado}.`
+      );
+    }
+
+    mensajes.push(
+      `Estrategia ${estrategiaVoz}.`
+    );
+
+    mensajes.push(
+      "Buscando entrada."
+    );
+
+    return hablarSecuencia(
+      mensajes,
       {
-        reemplazar: true
+        reemplazar: true,
+        pausa: 350
       }
     );
   }
 
 
+  /* ===================================================
+  18. PREPARE
+  =================================================== */
+
   function anunciarPrepare(
     resultado
   ) {
-    if (!resultado) {
+    if (
+      !resultado
+    ) {
       return false;
+    }
+
+    if (
+      resultado.direccion ===
+      "MATCH"
+    ) {
+      const digito =
+        resultado.metadata
+          ?.digito;
+
+      return hablarSecuencia(
+        [
+          "Atención.",
+          `Posible coincidencia con el número ${digito ?? ""}.`,
+          "Prepare el bot y espere confirmación."
+        ],
+        {
+          reemplazar: true,
+          pausa: 350
+        }
+      );
     }
 
     const direccion =
@@ -1009,22 +1184,91 @@ export function crearControladorVoz(
     return hablarSecuencia(
       [
         "Atención.",
-        `Posible operación ${direccion}.`,
+        `Posible ${direccion}.`,
         "Prepare el bot y espere confirmación."
       ],
       {
         reemplazar: true,
-        pausa: 380
+        pausa: 350
       }
     );
   }
 
 
+  /* ===================================================
+  19. REVALIDACIÓN
+  =================================================== */
+
+  function anunciarRevalidacion(
+    resultado
+  ) {
+    if (
+      !resultado
+    ) {
+      return false;
+    }
+
+    if (
+      resultado.direccion ===
+      "MATCH"
+    ) {
+      const digito =
+        resultado.metadata
+          ?.digito;
+
+      return hablar(
+        `Revalidando coincidencia con el número ${digito ?? ""}.`,
+        {
+          reemplazar: true
+        }
+      );
+    }
+
+    const direccion =
+      traducirDireccion(
+        resultado.direccion
+      );
+
+    return hablar(
+      `Revalidando posible ${direccion}.`,
+      {
+        reemplazar: true
+      }
+    );
+  }
+
+
+  /* ===================================================
+  20. CONFIRMACIÓN
+  =================================================== */
+
   function anunciarConfirmacion(
     resultado
   ) {
-    if (!resultado) {
+    if (
+      !resultado
+    ) {
       return false;
+    }
+
+    if (
+      resultado.direccion ===
+      "MATCH"
+    ) {
+      const digito =
+        resultado.metadata
+          ?.digito;
+
+      return hablarSecuencia(
+        [
+          `Coincidencia con el número ${digito ?? ""} confirmada.`,
+          "Ejecute ahora."
+        ],
+        {
+          reemplazar: true,
+          pausa: 280
+        }
+      );
     }
 
     const direccion =
@@ -1034,16 +1278,20 @@ export function crearControladorVoz(
 
     return hablarSecuencia(
       [
-        `Operación ${direccion} confirmada.`,
+        `${direccion} confirmado.`,
         "Ejecute ahora."
       ],
       {
         reemplazar: true,
-        pausa: 300
+        pausa: 280
       }
     );
   }
 
+
+  /* ===================================================
+  21. CANCELACIÓN
+  =================================================== */
 
   function anunciarCancelacion(
     motivo = ""
@@ -1052,12 +1300,18 @@ export function crearControladorVoz(
       "La oportunidad fue cancelada."
     ];
 
-    if (textoValido(motivo)) {
-      mensajes.push(motivo);
+    if (
+      textoValido(
+        motivo
+      )
+    ) {
+      mensajes.push(
+        motivo
+      );
     }
 
     mensajes.push(
-      "El monitoreo continúa."
+      "Continuando la búsqueda."
     );
 
     return hablarSecuencia(
@@ -1070,6 +1324,10 @@ export function crearControladorVoz(
   }
 
 
+  /* ===================================================
+  22. RESULTADO
+  =================================================== */
+
   function anunciarResultado(
     acierto
   ) {
@@ -1081,15 +1339,19 @@ export function crearControladorVoz(
 
         "Señal finalizada.",
 
-        "Puede esperar una nueva oportunidad."
+        "Buscando una nueva oportunidad."
       ],
       {
         reemplazar: true,
-        pausa: 350
+        pausa: 320
       }
     );
   }
 
+
+  /* ===================================================
+  23. CONTEO
+  =================================================== */
 
   function anunciarConteo(
     numero
@@ -1116,11 +1378,72 @@ export function crearControladorVoz(
   }
 
 
+  /* ===================================================
+  24. ANÁLISIS MANUAL
+  =================================================== */
+
+  function anunciarAnalisisManual(
+    resultado
+  ) {
+    if (
+      !resultado
+    ) {
+      return hablar(
+        "No hay datos suficientes para realizar el análisis.",
+        {
+          reemplazar: true
+        }
+      );
+    }
+
+    if (
+      resultado.direccion ===
+      "WAIT"
+    ) {
+      return hablar(
+        `No existe una entrada clara. Puntaje actual ${resultado.puntaje} de 100.`,
+        {
+          reemplazar: true
+        }
+      );
+    }
+
+    if (
+      resultado.direccion ===
+      "MATCH"
+    ) {
+      return hablar(
+        `Posible coincidencia con el número ${resultado.metadata?.digito ?? ""}. Puntaje ${resultado.puntaje} de 100.`,
+        {
+          reemplazar: true
+        }
+      );
+    }
+
+    const direccion =
+      traducirDireccion(
+        resultado.direccion
+      );
+
+    return hablar(
+      `Posible ${direccion}. Puntaje ${resultado.puntaje} de 100.`,
+      {
+        reemplazar: true
+      }
+    );
+  }
+
+
+  /* ===================================================
+  25. PROBAR VOZ
+  =================================================== */
+
   function probarVoz() {
     return hablarSecuencia(
       [
-        "Asistente de voz de Trading Analyst V8 Pro.",
-        "La voz está funcionando correctamente."
+        "Asistente de voz de Trading Analyst Pro MR.",
+        "La voz está funcionando correctamente.",
+        "La estrategia Matches será pronunciada como Coincidencia."
       ],
       {
         reemplazar: true,
@@ -1131,11 +1454,13 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  16. INICIALIZACIÓN
+  26. INICIALIZACIÓN
   =================================================== */
 
   function inicializar() {
-    if (!compatible) {
+    if (
+      !compatible
+    ) {
       activa = false;
 
       emitir(
@@ -1162,13 +1487,15 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  17. DESTRUIR
+  27. DESTRUIR
   =================================================== */
 
   function destruir() {
     cancelarTodo();
 
-    if (compatible) {
+    if (
+      compatible
+    ) {
       window.speechSynthesis
         .removeEventListener?.(
           "voiceschanged",
@@ -1187,7 +1514,7 @@ export function crearControladorVoz(
 
 
   /* ===================================================
-  18. API PÚBLICA
+  28. API PÚBLICA
   =================================================== */
 
   return {
@@ -1219,15 +1546,20 @@ export function crearControladorVoz(
     cancelarTodo,
 
     traducirDireccion,
+    traducirEstrategia,
 
     anunciarConexion,
     anunciarMotor,
-    anunciarMonitoreo,
+    anunciarBusqueda,
+
     anunciarPrepare,
+    anunciarRevalidacion,
     anunciarConfirmacion,
     anunciarCancelacion,
     anunciarResultado,
     anunciarConteo,
+
+    anunciarAnalisisManual,
 
     probarVoz
   };
@@ -1235,7 +1567,7 @@ export function crearControladorVoz(
 
 
 /* =====================================================
-19. INSTANCIA PRINCIPAL
+29. INSTANCIA PRINCIPAL
 ===================================================== */
 
 export const asistenteVoz =
@@ -1245,6 +1577,6 @@ export const asistenteVoz =
 /*
 =========================================================
 FIN DEL ARCHIVO js/voice.js
-TRADING ANALYST V8 PRO
+TRADING ANALYST PRO MR
 =========================================================
 */
